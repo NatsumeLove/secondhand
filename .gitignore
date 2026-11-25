@@ -1,0 +1,27 @@
+# ===== Python =====
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# ===== 数据库（每个人本地自己生成，不要提交，避免互相覆盖演示数据）=====
+market.db
+*.db
+*.sqlite3
+
+# ===== 用户上传的图片（种子封面会自己重新生成）=====
+static/uploads/*
+!static/uploads/.gitkeep
+
+# ===== 编辑器 / 系统 =====
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ===== 临时文件 =====
+*.log
+*.tmp
+s-*.png
+shot-*.png

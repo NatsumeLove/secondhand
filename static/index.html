@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>余物集 · 校园二手交易</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="app" v-cloak>
+
+  <!-- ==================== 登录页 ==================== -->
+  <div class="auth" v-if="!me">
+    <div class="auth-card">
+      <div class="brand">
+        <span class="brand-mark">余</span>
+        <span class="brand-name">余物集</span>
+      </div>
+      <p class="auth-sub">校园二手交易平台</p>
+
+      <label class="field">
+        <span>用户名</span>
+        <input v-model.trim="authForm.username" placeholder="请输入用户名" @keyup.enter="doLogin">
+      </label>
+      <label class="field">
+        <span>密码</span>
+        <input v-model.trim="authForm.password" type="password" placeholder="请输入密码" @keyup.enter="doLogin">
+      </label>
+
+      <button class="btn btn-primary btn-block" :disabled="loading" @click="doLogin">
+        {{ loading ? '登录中…' : '登录' }}
+      </button>
+      <p class="hint">演示账号：小林 / 123456　　老王 / 123456</p>
+    </div>
+
+    <button class="register-fab" @click="openRegister">注册账号</button>
+  </div>
+
+  <!-- ==================== 主界面 ==================== -->
+  <div class="app" v-else>
+
+    <header class="topbar">
+      <button class="user-chip" :class="{active: tab==='me'}" @click="switchTab('me')">
+        <img class="avatar" :src="me.avatar || '/static/default-avatar.svg'" alt="">
+        <span class="user-name">{{ me.username }}</span>
+      </button>
+
+      <nav class="nav">
+        <button v-for="t in tabs" :key="t.key" class="nav-item"
+                :class="{active: tab===t.key}" @click="switchTab(t.key)">
+          <span class="nav-icon" v-html="t.icon"></span>
+          <span>{{ t.label }}</span>
+          <span class="nav-dot" v-if="t.key==='msg' && unread">{{ unread > 99 ? '99+' : unread }}</span>
+        </button>
+      </nav>
+    </header>
+
+    <main class="main">
+
+      <!-- ---------- 首页 ---------- -->
+      <section class="page home" v-show="tab==='home'">
+        <div class="home-body">
+          <div class="home-list">
+            <div class="search-bar">
+              <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round">
+                <circle cx="11" cy="11" r="7"></circle>
+                <line x1="16.5" y1="16.5" x2="21" y2="21"></line>
+              </svg>
+              <input v-model="searchKeyword" @input="onSearchInput" @keyup.enter="applySearch"
+                     placeholder="搜索商品名，例如 iPad、吉他、相机">
+              <button class="search-clear" v-if="searchKeyword" @click="clearSearch" title="清空">✕</button>
+            </div>
+
+            <div class="list-head">
+              <h2>{{ searchApplied ? '搜索结果' : '发现好物' }}</h2>
+              <div class="head-right">
+                <span class="muted xs">
+                  {{ total }} 件{{ searchApplied ? '匹配' : '在售' }} · 已显示 {{ products.length }}
+                </span>
+                <button class="btn btn-ghost btn-sm" @click="reshuffle">换一批</button>
+              </div>
+            </div>
+
+            <p class="search-hint" v-if="searchApplied">
+              正在搜索「{{ searchApplied }}」，只显示商品名包含这几个字的商品。
+            </p>
+
+            <div class="grid" v-if="products.length">
+              <article class="card" v-for="p in products" :key="p.id" @click="openDetail(p)">
+                <div class="card-img">
+                  <img :src="p.image || '/static/default-cover.svg'" :alt="p.title">
+                  <span class="badge-mine" v-if="p.is_mine">我的</span>
+                </div>
+                <div class="card-body">
+                  <h3 class="card-title">{{ p.title }}</h3>
+                  <div class="price-row">
+                    <span class="price">¥{{ p.price }}</span>
+                  </div>
+                  <div class="tag-row">
+                    <span class="tag" v-for="t in p.tags" :key="t">{{ t }}</span>
+                  </div>
+                  <div class="card-foot">
+                    <img class="avatar avatar-xs" :src="p.owner.avatar || '/static/default-avatar.svg'" alt="">
+                    <span class="muted">{{ p.owner.username }}</span>
+                  </div>
+                </div>
+              </article>
+            </div>
+
+            <div class="empty" v-else>
+              <p v-if="searchApplied">没有找到商品名包含「{{ searchApplied }}」的在售商品</p>
+              <p v-else>没有符合条件的商品</p>
+              <button class="btn btn-ghost btn-sm" @click="clearFilters">
+                {{ searchApplied ? '清空搜索和筛选' : '清空筛选条件' }}
+              </button>
+            </div>
+
+            <div class="load-more" v-if="hasMore">
+              <button class="btn btn-ghost" :disabled="loadingMore" @click="loadMore">
+                {{ loadingMore ? '加载中…' : `加载更多（还有 ${total - products.length} 件）` }}
+              </button>
+            </div>
+            <p class="list-end" v-else-if="products.length">已经到底了，共 {{ total }} 件</p>
+          </div>
+
+          <aside class="filter">
+            <h3 class="filter-title">筛选</h3>
+
+            <div class="filter-block">
+              <div class="filter-label">价格区间</div>
+              <div class="price-range">
+                <input v-model.number="filters.min" type="number" placeholder="最低" min="0">
+                <span class="dash">—</span>
+                <input v-model.number="filters.max" type="number" placeholder="最高" min="0">
+              </div>
+              <button class="btn btn-primary btn-block btn-sm" @click="applyFilters">应用筛选</button>
+              <p class="warn" v-if="filters.min > filters.max && filters.max !== ''">最低价不能高于最高价</p>
+            </div>
+
+            <div class="filter-block">
+              <div class="filter-label">商品标签</div>
+              <input class="tag-input" v-model="tagKeyword" placeholder="输入关键词匹配标签">
+              <div class="tag-suggest" v-if="tagSuggestions.length">
+                <button class="tag tag-btn" v-for="t in tagSuggestions" :key="t" @click="toggleTag(t)">
+                  {{ t }}
+                </button>
+              </div>
+              <div class="tag-row" v-if="filters.tags.length">
+                <button class="tag tag-active" v-for="t in filters.tags" :key="t" @click="toggleTag(t)">
+                  {{ t }} ✕
+                </button>
+              </div>
+            </div>
+
+            <div class="filter-tip">
+              不设条件时，首页会随机推荐商品（模拟推荐算法）；设置条件后只显示匹配结果。
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ---------- 消息 ---------- -->
+      <section class="page msg" v-show="tab==='msg'">
+        <div class="msg-list">
+          <div class="list-head"><h2>消息</h2></div>
+          <div class="conv" v-for="c in conversations" :key="c.id"
+               :class="{active: activeConv && activeConv.id===c.id}" @click="openConversation(c.id)">
+            <img class="avatar" :src="c.other.avatar || '/static/default-avatar.svg'" alt="">
+            <div class="conv-main">
+              <div class="conv-top">
+                <span class="conv-name">{{ c.other.username }}</span>
+                <span class="muted xs">{{ c.i_am_seller ? '买家' : '卖家' }}</span>
+              </div>
+              <div class="conv-last" :class="{unread: c.unread}">{{ c.last_message || '还没有消息' }}</div>
+            </div>
+            <span class="conv-dot" v-if="c.unread">{{ c.unread > 99 ? '99+' : c.unread }}</span>
+            <img class="conv-thumb" :src="c.product.image || '/static/default-cover.svg'" alt="">
+          </div>
+          <div class="empty small" v-if="!conversations.length">
+            <p>还没有会话</p>
+            <p class="muted xs">在商品详情点“讲价”就能开始聊</p>
+          </div>
+        </div>
+
+        <div class="chat" v-if="activeConv">
+          <div class="chat-head">
+            <div class="chat-who">
+              <strong>{{ activeConv.other.username }}</strong>
+              <span class="muted xs">（{{ activeConv.i_am_seller ? '买家' : '卖家' }}）</span>
+            </div>
+            <div class="chat-right">
+              <div class="chat-product">
+                <img :src="activeConv.product.image || '/static/default-cover.svg'" alt="">
+                <span class="ellipsis">{{ activeConv.product.title }}</span>
+                <span class="price sm">¥{{ activeConv.product.price }}</span>
+              </div>
+              <button v-if="chatBuyable" class="btn btn-primary btn-sm"
+                      :disabled="buying" @click="buyFromChat">
+                {{ buying ? '下单中…' : '立即购买' }}
+              </button>
+              <span v-else-if="!activeConv.i_am_seller" class="muted xs">已售出 / 已下架</span>
+            </div>
+          </div>
+
+          <div class="chat-body" ref="chatBody">
+            <div v-for="m in messages" :key="m.id" class="bubble-row"
+                 :class="{mine: m.sender_id===me.id, system: m.type==='system'}">
+              <div class="bubble" :class="m.type">
+                <template v-if="m.type==='offer'">
+                  <div class="offer-title">改价申请</div>
+                  <div class="offer-price">¥{{ m.price }}</div>
+                  <div class="offer-state" v-if="m.accepted">卖家已同意</div>
+                  <button v-else-if="m.sender_id!==me.id" class="btn btn-primary btn-sm"
+                          @click="acceptOffer(m)">同意改价</button>
+                </template>
+                <template v-else>{{ m.content }}</template>
+                <span class="bubble-time">{{ m.created_at }}</span>
+              </div>
+            </div>
+            <div class="empty small" v-if="!messages.length"><p>打个招呼吧</p></div>
+          </div>
+
+          <div class="chat-input">
+            <button class="btn btn-ghost btn-sm" @click="showOffer = !showOffer">申请改价</button>
+            <div class="offer-panel" v-if="showOffer">
+              <input v-model.number="offerPrice" type="number" placeholder="你希望的价格" min="0">
+              <button class="btn btn-primary btn-sm" @click="sendOffer">提交</button>
+            </div>
+            <input class="chat-text" v-model="chatText" placeholder="输入消息…" @keyup.enter="sendText">
+            <button class="btn btn-primary" @click="sendText">发送</button>
+          </div>
+        </div>
+
+        <div class="chat chat-empty" v-else>
+          <p class="muted">选择左边的一个会话开始聊天</p>
+        </div>
+      </section>
+
+      <!-- ---------- 我的商品 ---------- -->
+      <section class="page" v-show="tab==='items'">
+        <div class="list-head">
+          <h2>我的商品</h2>
+          <button class="btn btn-primary btn-sm" @click="openCreate">+ 新增商品</button>
+        </div>
+
+        <div class="grid" v-if="myProducts.length">
+          <article class="card" v-for="p in myProducts" :key="p.id">
+            <div class="card-img">
+              <img :src="p.image || '/static/default-cover.svg'" :alt="p.title">
+              <span class="badge-status" :class="p.status">{{ p.status==='on' ? '已上架' : '已下架' }}</span>
+            </div>
+            <div class="card-body">
+              <h3 class="card-title">{{ p.title }}</h3>
+              <div class="price-row"><span class="price">¥{{ p.price }}</span></div>
+              <div class="tag-row">
+                <span class="tag" v-for="t in p.tags" :key="t">{{ t }}</span>
+              </div>
+              <div class="card-actions">
+                <button class="btn btn-ghost btn-sm" @click="openEdit(p)">编辑</button>
+                <button class="btn btn-ghost btn-sm" @click="toggleStatus(p)">
+                  {{ p.status==='on' ? '下架' : '上架' }}
+                </button>
+                <button class="btn btn-danger btn-sm" @click="removeProduct(p)">删除</button>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div class="empty" v-else>
+          <p>还没有商品</p>
+          <button class="btn btn-primary btn-sm" @click="openCreate">发布第一件</button>
+        </div>
+      </section>
+
+      <!-- ---------- 我的订单 ---------- -->
+      <section class="page" v-show="tab==='orders'">
+        <div class="list-head"><h2>我的订单</h2></div>
+
+        <div class="tabs">
+          <button class="tab-btn" :class="{active: orderTab==='bought'}" @click="orderTab='bought'">
+            我买到的 ({{ orders.bought.length }})
+            <span class="tab-dot" v-if="orders.todo_bought">待收货 {{ orders.todo_bought }}</span>
+          </button>
+          <button class="tab-btn" :class="{active: orderTab==='sold'}" @click="orderTab='sold'">
+            我卖出的 ({{ orders.sold.length }})
+            <span class="tab-dot" v-if="orders.todo_sold">待发货 {{ orders.todo_sold }}</span>
+          </button>
+        </div>
+
+        <div class="order-list" v-if="currentOrders.length">
+          <article class="order" v-for="o in currentOrders" :key="o.id">
+            <img class="order-img" :src="o.image || '/static/default-cover.svg'" alt="">
+            <div class="order-main">
+              <div class="order-top">
+                <h3 class="ellipsis">{{ o.title }}</h3>
+                <span class="price">¥{{ o.deal_price }}</span>
+              </div>
+              <p class="order-desc">{{ o.description }}</p>
+              <div class="tag-row">
+                <span class="tag" v-for="t in o.tags" :key="t">{{ t }}</span>
+              </div>
+              <div class="order-foot">
+                <span class="party">
+                  <img class="avatar avatar-xs"
+                       :src="(orderTab==='bought' ? o.seller.avatar : o.buyer.avatar) || '/static/default-avatar.svg'" alt="">
+                  {{ orderTab==='bought' ? '卖家' : '买家' }}：{{ orderTab==='bought' ? o.seller.username : o.buyer.username }}
+                </span>
+                <span class="order-foot-right">
+                  <span class="muted xs">{{ o.created_at }}</span>
+                  <span class="order-status" :class="o.status">{{ o.status_text }}</span>
+                </span>
+              </div>
+              <div class="order-actions">
+                <template v-if="orderTab==='sold'">
+                  <span v-if="o.status==='pending'" class="muted xs">买家已付款，等你发货</span>
+                  <span v-else-if="o.status==='shipped'" class="muted xs">已发货，等待买家确认收货</span>
+                  <span v-else-if="o.status==='done'" class="muted xs">交易完成</span>
+                  <span v-else class="muted xs">买家已取消，商品已退回你这边</span>
+                  <button v-if="o.status==='pending'" class="btn btn-primary btn-sm" @click="shipOrder(o)">
+                    标记发货
+                  </button>
+                </template>
+                <template v-else>
+                  <span v-if="o.status==='pending'" class="muted xs">等待卖家发货，此时可以取消</span>
+                  <span v-else-if="o.status==='shipped'" class="muted xs">卖家已发货，收到后请确认</span>
+                  <span v-else-if="o.status==='done'" class="muted xs">交易完成</span>
+                  <span v-else class="muted xs">已退款，商品已退回卖家</span>
+                  <button v-if="o.status==='shipped'" class="btn btn-primary btn-sm" @click="confirmOrder(o)">
+                    确认收货
+                  </button>
+                  <button v-if="o.status==='pending'" class="btn btn-ghost btn-sm" @click="cancelOrder(o)">
+                    取消订单
+                  </button>
+                </template>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div class="empty" v-else><p>还没有订单</p></div>
+      </section>
+
+      <!-- ---------- 用户中心 ---------- -->
+      <section class="page" v-show="tab==='me'">
+        <div class="profile">
+          <div class="profile-head">
+            <label class="avatar-edit">
+              <img class="avatar avatar-lg" :src="me.avatar || '/static/default-avatar.svg'" alt="">
+              <span class="avatar-tip">点击换头像</span>
+              <input type="file" accept="image/*" @change="uploadAvatar" hidden>
+            </label>
+            <div>
+              <h2>{{ me.username }}</h2>
+              <p class="muted">余额 <span class="price">¥{{ me.balance }}</span></p>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>修改资料</h3>
+            <label class="field row">
+              <span>用户名</span>
+              <input v-model.trim="profileForm.username" placeholder="新的用户名">
+            </label>
+            <label class="field row">
+              <span>新密码</span>
+              <input v-model.trim="profileForm.password" type="password" placeholder="不改就留空">
+            </label>
+            <button class="btn btn-primary btn-sm" @click="saveProfile">保存修改</button>
+          </div>
+
+          <div class="panel">
+            <h3>余额充值</h3>
+            <p class="muted xs">作业演示用，余额可以直接充值，付款会真实扣除。</p>
+            <div class="recharge-row">
+              <button class="btn btn-ghost" @click="recharge(100)">+ 100</button>
+              <button class="btn btn-ghost" @click="recharge(500)">+ 500</button>
+              <button class="btn btn-ghost" @click="recharge(1000)">+ 1000</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>账号</h3>
+            <p class="muted xs">退出后需要重新输入用户名和密码才能进入。</p>
+            <button class="btn btn-logout btn-block" @click="doLogout">退出登录</button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- ---------- 商品详情弹窗 ---------- -->
+    <div class="modal-mask" v-if="detail" @click.self="detail=null">
+      <div class="modal detail-modal">
+        <button class="modal-close" @click="detail=null">✕</button>
+        <div class="detail">
+          <div class="detail-img">
+            <img :src="detail.image || '/static/default-cover.svg'" :alt="detail.title">
+          </div>
+          <div class="detail-info">
+            <h2>{{ detail.title }}</h2>
+            <div class="price-row">
+              <span class="price xl">¥{{ detail.price }}</span>
+              <span class="badge-status" :class="detail.status">{{ detail.status==='on' ? '在售' : '已下架' }}</span>
+            </div>
+            <div class="tag-row">
+              <span class="tag" v-for="t in detail.tags" :key="t">{{ t }}</span>
+            </div>
+            <p class="detail-desc">{{ detail.description || '卖家没有填描述' }}</p>
+            <div class="seller">
+              <img class="avatar" :src="detail.owner.avatar || '/static/default-avatar.svg'" alt="">
+              <div>
+                <div><strong>{{ detail.owner.username }}</strong></div>
+                <div class="muted xs">卖家</div>
+              </div>
+            </div>
+
+            <div class="detail-actions" v-if="!detail.is_mine">
+              <button class="btn btn-primary btn-block" :disabled="detail.status!=='on' || buying" @click="buy(detail)">
+                {{ detail.status==='on' ? (buying ? '处理中…' : '立即购买') : '已下架' }}
+              </button>
+              <button class="btn btn-outline btn-block" @click="startBargain(detail)">讲价</button>
+            </div>
+            <p class="muted xs center" v-else>这是你自己发布的商品</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---------- 新增 / 编辑商品弹窗 ---------- -->
+    <div class="modal-mask" v-if="showCreate" @click.self="closeProductForm">
+      <div class="modal form-modal">
+        <button class="modal-close" @click="closeProductForm">✕</button>
+        <h2>{{ editingId ? '编辑商品' : '新增商品' }}</h2>
+        <label class="field"><span>商品名称</span>
+          <input v-model.trim="createForm.title" placeholder="例如：iPad Air 4 64G">
+        </label>
+        <label class="field"><span>价格</span>
+          <input v-model.number="createForm.price" type="number" placeholder="元" min="0">
+        </label>
+        <div class="field">
+          <span>商品标签（可多选）</span>
+          <div class="tag-row wrap">
+            <button class="tag tag-btn" v-for="t in presetTags" :key="t"
+                    :class="{'tag-active': createForm.tags.includes(t)}" @click="toggleCreateTag(t)">{{ t }}</button>
+          </div>
+        </div>
+        <label class="field"><span>商品描述</span>
+          <textarea v-model.trim="createForm.description" rows="3" placeholder="成色、使用时长、附件……"></textarea>
+        </label>
+        <label class="field"><span>商品图片</span>
+          <input type="file" accept="image/*" @change="uploadProductImage">
+        </label>
+        <div class="avatar-preview" v-if="createForm.image">
+          <img :src="createForm.image" alt="商品图预览">
+        </div>
+        <p class="muted xs" v-if="editingId">修改不会影响已经成交的订单，订单里存的是当时的样子。</p>
+        <button class="btn btn-primary btn-block" @click="submitProduct">
+          {{ editingId ? '保存修改' : '发布（默认下架）' }}
+        </button>
+      </div>
+    </div>
+
+  </div>
+  <!-- /.app  注意：注册弹窗和提示条必须放在这个 div 外面，
+       因为 .app 带 v-else，未登录时整个节点都不存在，放里面点了会没反应 -->
+
+  <!-- ---------- 注册弹窗 ---------- -->
+  <div class="modal-mask" v-if="showRegister" @click.self="showRegister=false">
+    <div class="modal form-modal">
+      <button class="modal-close" @click="showRegister=false">✕</button>
+      <h2>注册账号</h2>
+      <label class="field"><span>用户名</span>
+        <input v-model.trim="registerForm.username" placeholder="至少 2 个字" @keyup.enter="doRegister">
+      </label>
+      <label class="field"><span>密码</span>
+        <input v-model.trim="registerForm.password" type="password" placeholder="至少 6 位" @keyup.enter="doRegister">
+      </label>
+      <label class="field"><span>头像（可选）</span>
+        <input type="file" accept="image/*" @change="uploadRegisterAvatar">
+      </label>
+      <div class="avatar-preview" v-if="registerForm.avatar">
+        <img :src="registerForm.avatar" alt="头像预览">
+        <span class="muted xs">已选择头像</span>
+      </div>
+      <button class="btn btn-primary btn-block" :disabled="loading" @click="doRegister">
+        {{ loading ? '注册中…' : '注册并登录' }}
+      </button>
+    </div>
+  </div>
+
+  <!-- ---------- 提示 ---------- -->
+  <transition name="fade">
+    <div class="toast" v-if="toast" :class="toast.type">{{ toast.text }}</div>
+  </transition>
+
+</div>
+
+<script src="/static/vue.global.prod.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
