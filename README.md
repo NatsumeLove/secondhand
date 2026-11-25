@@ -160,3 +160,12 @@ secondhand/
 换成 `"mysql+pymysql://用户名:密码@127.0.0.1:3306/market"` 即可，
 再把 `requirements.txt` 加上 `pymysql`。
 表结构不用改，因为是通过 ORM 写的。
+
+---
+
+## 八、多人协作
+
+组员怎么 clone、怎么开分支、怎么提 PR、冲突怎么解，写在
+[`docs/协作说明.md`](docs/协作说明.md)。
+
+主线负责人往 GitHub 推代码，双击 `推送到GitHub.bat`，把仓库地址粘进去就行。
