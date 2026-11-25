@@ -7,18 +7,34 @@ echo ============================================================
 echo   Push this project to GitHub
 echo ============================================================
 echo.
-echo  Before running this, create an EMPTY repo on GitHub:
-echo    github.com -^> New repository -^> name "secondhand"
-echo    -^> Public -^> do NOT tick README / .gitignore / license
+
+rem step 1 - reuse the remote url if it is already configured
+set "REPO="
+for /f "delims=" %%i in ('git remote get-url origin 2^>nul') do set "REPO=%%i"
+if not defined REPO goto ask
+
+echo  Repo already set:
+echo    %REPO%
 echo.
-echo  Your repo URL looks like:
+echo  Press Enter to use it, or paste a different URL.
+set /p NEWREPO=URL: 
+if defined NEWREPO set "REPO=%NEWREPO%"
+goto push
+
+:ask
+echo  Create an EMPTY repo on GitHub first:
+echo    github.com -^> New repository -^> name "secondhand"
+echo    Public -^> do NOT tick README / .gitignore / license
+echo.
+echo  Then paste the URL, e.g.
 echo    https://github.com/NatsumeLove/secondhand.git
 echo.
-set /p REPO=Paste the URL here, then press Enter: 
+set /p REPO=URL: 
 
-if "%REPO%"=="" (
+:push
+if not defined REPO (
   echo.
-  echo [!] Nothing entered, exit.
+  echo [!] No URL, exit.
   pause
   exit /b 1
 )
@@ -30,11 +46,13 @@ git branch -M main
 echo.
 echo ------------------------------------------------------------
 echo  Pushing...
-echo  If a browser window pops up, just sign in to GitHub.
-echo  If it asks for username / password:
-echo    username = your GitHub username
-echo    password = a Personal Access Token, NOT your login password
+echo.
+echo  A browser window may pop up - just sign in to GitHub.
+echo  If the console asks for Username / Password instead:
+echo    Username = your GitHub username
+echo    Password = a Personal Access Token, NOT your login password
 echo               create one at github.com/settings/tokens
+echo               -^> classic -^> tick "repo" -^> generate
 echo ------------------------------------------------------------
 echo.
 
@@ -43,15 +61,16 @@ git push -u origin main
 if errorlevel 1 (
   echo.
   echo [!] Push failed. Read the message above.
-  echo     Most common causes:
-  echo       1. The GitHub repo is not empty -^> delete it and create again
+  echo     Common causes:
+  echo       1. The GitHub repo is NOT empty -^> delete it, create again, tick nothing
   echo       2. Wrong URL -^> it must end with .git
-  echo       3. Password typed instead of Token
+  echo       3. Typed login password instead of Token
   pause
   exit /b 1
 )
 
 echo.
-echo [OK] Done. Refresh your GitHub page, the code should be there.
+echo [OK] Done. Opening your repo page...
+start "" %REPO:.git=%
 echo.
 pause
