@@ -41,10 +41,14 @@ if not defined REPO (
 
 git remote remove origin >nul 2>&1
 git remote add origin %REPO%
-git branch -M main
+
+rem push the CURRENT branch, not a hardcoded main
+for /f "delims=" %%b in ('git branch --show-current') do set "BR=%%b"
+if not defined BR set "BR=main"
 
 echo.
 for /f "delims=" %%p in ('git config --get http.proxy 2^>nul') do echo  Proxy in use: %%p
+echo  Branch to push: %BR%
 echo ------------------------------------------------------------
 echo  Pushing...
 echo.
@@ -57,7 +61,7 @@ echo               -^> classic -^> tick "repo" -^> generate
 echo ------------------------------------------------------------
 echo.
 
-git push -u origin main
+git push -u origin %BR%
 
 if errorlevel 1 (
   echo.
@@ -70,6 +74,9 @@ if errorlevel 1 (
   echo       2. The GitHub repo is NOT empty -^> delete it, create again, tick nothing
   echo       3. Wrong URL -^> it must end with .git
   echo       4. Typed login password instead of Token
+  echo       5. "protected branch" -^> main accepts PRs only. Work on a branch:
+  echo            git checkout -b feature/your-task
+  echo          then run this script again.
   pause
   exit /b 1
 )
