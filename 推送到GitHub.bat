@@ -44,6 +44,7 @@ git remote add origin %REPO%
 git branch -M main
 
 echo.
+for /f "delims=" %%p in ('git config --get http.proxy 2^>nul') do echo  Proxy in use: %%p
 echo ------------------------------------------------------------
 echo  Pushing...
 echo.
@@ -62,9 +63,13 @@ if errorlevel 1 (
   echo.
   echo [!] Push failed. Read the message above.
   echo     Common causes:
-  echo       1. The GitHub repo is NOT empty -^> delete it, create again, tick nothing
-  echo       2. Wrong URL -^> it must end with .git
-  echo       3. Typed login password instead of Token
+  echo       1. Connection was reset -^> you are behind a proxy, tell git to use it:
+  echo            git config http.proxy http://127.0.0.1:7897
+  echo          turn it off again with:
+  echo            git config --unset http.proxy
+  echo       2. The GitHub repo is NOT empty -^> delete it, create again, tick nothing
+  echo       3. Wrong URL -^> it must end with .git
+  echo       4. Typed login password instead of Token
   pause
   exit /b 1
 )
