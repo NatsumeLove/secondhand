@@ -14,6 +14,16 @@ market.db
 static/uploads/*
 !static/uploads/.gitkeep
 
+# ===== AI Agent 的 API Key 配置（里面有密钥，不要提交）=====
+agent_config.json
+vision_config.json
+
+# ===== 本地 HTTPS 证书（server.key 是私钥，不要提交）=====
+certs/
+
+# ===== 本地调试残留 =====
+static/_min.html
+
 # ===== 编辑器 / 系统 =====
 .vscode/
 .idea/

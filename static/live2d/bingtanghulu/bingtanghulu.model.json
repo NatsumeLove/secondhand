@@ -1,0 +1,24 @@
+{
+  "type": "Live2D Model Setting",
+  "name": "bingtanghulu",
+  "model": "bingtanghulu.moc",
+  "textures": [
+    "texture_00.png"
+  ],
+  "physics": "physics.json",
+  "motions": {
+    "idle": [
+      {
+        "file": "motions/idle.mtn",
+        "fade_in": 2000,
+        "fade_out": 2000
+      }
+    ],
+    "tap_body": [
+      {
+        "file": "motions/jushou.mtn",
+        "fade_in": 500
+      }
+    ]
+  }
+}

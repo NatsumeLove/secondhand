@@ -1,0 +1,5 @@
+{
+  "api_key": "在这里填入你的 DeepSeek API Key（形如 sk-xxxx），填好后把本文件重命名为 agent_config.json",
+  "base_url": "https://api.deepseek.com",
+  "model": "deepseek-chat"
+}

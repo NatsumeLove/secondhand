@@ -43,6 +43,9 @@
 | 消息 | 左侧会话列表（带未读红点），右侧聊天；买家可发"改价申请"，卖家点"同意"后价格真的会变 |
 | 我的商品 | 新增 / **编辑** / 删除 / 上下架；买来的商品会出现在这里，默认下架，可以再上架转卖 |
 | 我的订单 | 买入、卖出两个子栏；每单有状态（待发货 / 待收货 / 已完成 / 已取消），卖家可发货、买家可确认收货或取消，显示成交价、商品快照、对方用户名头像、时间 |
+| AI 淘好物 | 右下角悬浮球，点开是 AI 购物助手"小余"：用大白话描述需求（如"预算 3000 找台 iPad"），它会调用 DeepSeek 模型在站内搜索并推荐合适的在售商品，点卡片直接看详情下单 |
+
+**使用前提**：把 DeepSeek 的 API Key 填进项目根目录的 `agent_config.json`（参考 `agent_config.example.json`），或者设置环境变量 `DEEPSEEK_API_KEY`。没填 key 时功能会提示如何配置，其他功能不受影响。
 
 ---
 
@@ -56,6 +59,8 @@ secondhand/
 ├─ seed.py               演示数据：第一次运行时生成 3 个账号、22 件商品、3 笔不同状态的订单
 ├─ requirements.txt      Python 依赖清单
 ├─ market.db             数据库文件（自动生成，删掉就会重新生成演示数据）
+├─ agent_config.json     AI 淘好物的配置：DeepSeek API Key 填在这里（不进 git）
+├─ agent_config.example.json  上面那个的模板，组员 clone 后照着建
 ├─ venv/                 Python 虚拟环境（自动生成，不用管）
 └─ static/
    ├─ index.html         页面结构：登录页、五个栏目、各种弹窗
@@ -150,6 +155,14 @@ secondhand/
 **Q：想清空数据重新来一遍？**
 关掉服务，删除 `secondhand/market.db`，再启动。演示数据会重新生成，
 包括你上传过的图片之外的所有内容。
+
+**Q：手机怎么访问？（局域网演示）**
+服务现在监听所有网卡（0.0.0.0）。启动后黑窗口会打印一个"局域网访问"地址
+（形如 `http://192.168.x.x:5000`），保证手机和电脑连**同一个 Wi-Fi**，
+手机浏览器输入那个地址即可。
+- 第一次启动时 Windows 可能弹出防火墙询问，点"允许访问"；
+- 没弹窗或连不上时，用管理员身份运行一次：
+  `netsh advfirewall firewall add rule name="YuWuJi 5000" dir=in action=allow protocol=TCP localport=5000`
 
 **Q：图片上传失败？**
 只支持 png / jpg / gif / webp，单张不超过 8MB。
