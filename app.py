@@ -112,6 +112,48 @@ def login_required(fn):
     return wrapper
 
 
+def admin_required(fn):
+    """管理接口专用：必须是超级管理员，普通账号连试都别试。"""
+
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        user = current_user()
+        if user is None:
+            return jsonify({"error": "登录状态已失效，请重新登录"}), 401
+        if not user.is_admin:
+            return jsonify({"error": "没有管理权限"}), 403
+        return fn(user, *args, **kwargs)
+
+    return wrapper
+
+
+# 超级管理员账号：别人看不到、也没有主页，只用来进管理面板
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "123456"
+# 注册时禁止抢这个名字，否则谁先注册谁就成了"影子管理员"
+RESERVED_USERNAMES = {ADMIN_USERNAME}
+
+
+def ensure_admin():
+    """保证管理员账号存在。已存在的只补个标记，不重置密码（免得改过的密码被启动冲掉）。"""
+    admin = User.query.filter_by(username=ADMIN_USERNAME).first()
+    if admin is None:
+        admin = User(
+            username=ADMIN_USERNAME,
+            password_hash=generate_password_hash(ADMIN_PASSWORD, method="pbkdf2:sha256"),
+            avatar="",
+            balance=0.0,
+            is_admin=True,
+        )
+        db.session.add(admin)
+        db.session.commit()
+        print(f"已创建超级管理员账号：{ADMIN_USERNAME} / {ADMIN_PASSWORD}")
+    elif not admin.is_admin:
+        admin.is_admin = True
+        db.session.commit()
+    return admin
+
+
 @app.errorhandler(413)
 def too_large(_e):
     return jsonify({"error": "文件太大了：图片不超过 8MB，视频不超过 50MB"}), 413
@@ -145,6 +187,8 @@ def ensure_columns():
         # 定位坐标（距离功能）
         ("users", "latitude", "REAL"),
         ("users", "longitude", "REAL"),
+        # 超级管理员标记（admin 账号）
+        ("users", "is_admin", "BOOLEAN NOT NULL DEFAULT 0"),
     ]
     for table, column, ddl in todo:
         if table not in insp.get_table_names():
@@ -194,6 +238,8 @@ def register():
         return jsonify({"error": "用户名至少 2 个字"}), 400
     if len(password) < 6:
         return jsonify({"error": "密码至少 6 位"}), 400
+    if username in RESERVED_USERNAMES:
+        return jsonify({"error": "这个用户名不可用"}), 400
     if User.query.filter_by(username=username).first():
         return jsonify({"error": "这个用户名已经有人用了"}), 400
 
@@ -319,7 +365,8 @@ def _apply_location(user, lat, lng):
         user.province = prov or user.province
         user.city = nearest
         user.district = dist_name
-        for other in User.query.filter(User.id != user.id).all():
+        for other in User.query.filter(
+                User.id != user.id, User.is_admin.is_(False)).all():
             other.province = prov or other.province
             other.city = nearest
             other.district = dist_name
@@ -1147,6 +1194,10 @@ def follow_user(user, uid):
     target = db.session.get(User, uid)
     if target is None:
         return jsonify({"error": "用户不存在"}), 404
+    if target.is_admin:
+        return jsonify({"error": "用户不存在"}), 404
+    if user.is_admin:
+        return jsonify({"error": "管理员不参与买卖和关注"}), 403
     if target.id == user.id:
         return jsonify({"error": "不能关注你自己"}), 400
 
@@ -1236,6 +1287,9 @@ def user_profile(user, uid):
     """卖家小铺主页：资料 + 粉丝数据 + 在售商品 + 信用/评价/动态。"""
     u = db.session.get(User, uid)
     if u is None:
+        return jsonify({"error": "用户不存在"}), 404
+    # 管理员没有主页，也不该被当成卖家参观
+    if u.is_admin:
         return jsonify({"error": "用户不存在"}), 404
 
     products = (
@@ -1682,17 +1736,19 @@ DISPUTE_DAYS = [1, 3, 5, 7]          # 发起时可选的审理期限（天）
 DISPUTE_DELETE_ROLES = True          # 发起人/当事双方都可以删案
 
 
-def _judge_if_due(d):
-    """期限一到就宣判。在列表/详情接口里懒执行，不用起后台定时器。"""
-    if d.status != "open" or datetime.now() < d.deadline:
-        return
-    b, s = d.vote_counts()
+def _apply_verdict(d, verdict, by_admin=False):
+    """把判决结果落地：退款取消 / 订单完成 / 维持原状。
+
+    到期自动宣判（_judge_if_due）和管理员直接改判都走这里，
+    保证「票数判出来的」和「管理员定的」在钱和订单上的后果完全一致。
+    """
     d.status = "closed"
-    d.verdict = "buyer" if b > s else ("seller" if s > b else "draw")
+    d.verdict = verdict
+    b, s = d.vote_counts()
 
     order = db.session.get(Order, d.order_id) if d.order_id else None
     # 有订单才谈得上"满足胜利者的需求"；纯口角案只记录投票结果
-    if d.verdict == "buyer" and order and order.status in ("pending", "shipped"):
+    if verdict == "buyer" and order and order.status in ("pending", "shipped"):
         buyer = db.session.get(User, order.buyer_id)
         seller = db.session.get(User, order.seller_id)
         product = db.session.get(Product, order.product_id)
@@ -1703,15 +1759,30 @@ def _judge_if_due(d):
             product.status = "on"
         order.status = "cancelled"
         order.status_at = datetime.now()
-        d.verdict_note = f"买家以 {b}:{s} 胜诉，订单已退款取消"
-    elif d.verdict == "seller" and order and order.status in ("pending", "shipped"):
+        d.verdict_note = ("管理员判定：买家胜诉，订单已退款取消" if by_admin
+                          else f"买家以 {b}:{s} 胜诉，订单已退款取消")
+    elif verdict == "seller" and order and order.status in ("pending", "shipped"):
         order.status = "done"
         order.status_at = datetime.now()
-        d.verdict_note = f"卖家以 {s}:{b} 胜诉，订单已完成，货款归卖家"
-    elif d.verdict == "draw":
-        d.verdict_note = f"双方 {b}:{s} 战平，各退一步，订单维持原状"
+        d.verdict_note = ("管理员判定：卖家胜诉，订单已完成，货款归卖家" if by_admin
+                          else f"卖家以 {s}:{b} 胜诉，订单已完成，货款归卖家")
+    elif verdict == "draw":
+        d.verdict_note = ("管理员判定：平局，订单维持原状" if by_admin
+                          else f"双方 {b}:{s} 战平，各退一步，订单维持原状")
     else:
-        d.verdict_note = f"投票结果 买家{b} : 卖家{s}"
+        # 没有订单，或订单已经在先前的判决里结束：只记录结论，不再动钱
+        note = ("管理员判定：" if by_admin else "投票结果 ") + f"买家{b} : 卖家{s}"
+        if by_admin and order and order.status in ("done", "cancelled"):
+            note += "（订单已在此前处理，本次只更新案件结论，款项未重复变动）"
+        d.verdict_note = note
+
+
+def _judge_if_due(d):
+    """期限一到就宣判。在列表/详情接口里懒执行，不用起后台定时器。"""
+    if d.status != "open" or datetime.now() < d.deadline:
+        return
+    b, s = d.vote_counts()
+    _apply_verdict(d, "buyer" if b > s else ("seller" if s > b else "draw"))
     db.session.commit()
 
 
@@ -2231,6 +2302,325 @@ def backfill_user_coords():
         print(f"已为 {n} 个老账号补定位坐标")
 
 
+# ---------------------------------------------------------------- 管理面板
+#
+# 只有 admin 能进（admin_required）。三块：商品 / 账号 / 小法庭。
+# 管理员自己不出现在账号列表里，也不能被删、被改、被关注。
+
+ADMIN_PRODUCT_STATUS = {"on", "off"}
+
+# 管理员登录后允许的写操作：只有管理接口和登录/退出
+ADMIN_ALLOWED_WRITE = {"/api/login", "/api/logout"}
+
+
+@app.before_request
+def _block_admin_business():
+    """管理员只管理，不做买卖。
+
+    前端已经不给入口了，这里再拦一道：万一有人拿 admin 的 cookie
+    直接调发商品/下单/投票的接口，也不会往业务数据里掺东西。
+    """
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return None
+    u = current_user()
+    if u is None or not u.is_admin:
+        return None
+    path = request.path
+    if path.startswith("/api/admin/") or path in ADMIN_ALLOWED_WRITE:
+        return None
+    return jsonify({"error": "管理员账号只能使用管理面板"}), 403
+
+
+def _admin_product_row(p):
+    return {
+        "id": p.id,
+        "title": p.title,
+        "price": round(p.price, 2),
+        "tags": p.tag_list,
+        "description": p.description or "",
+        "image": p.image or (p.image_list[0] if p.image_list else ""),
+        "status": p.status,
+        "owner": {"id": p.owner.id, "username": p.owner.username,
+                  "avatar": p.owner.avatar},
+        "created_at": p.created_at.strftime("%Y-%m-%d %H:%M") if p.created_at else "",
+    }
+
+
+@app.get("/api/admin/products")
+@admin_required
+def admin_products(user):
+    rows = Product.query.order_by(Product.id.desc()).all()
+    return jsonify({"items": [_admin_product_row(p) for p in rows]})
+
+
+@app.put("/api/admin/products/<int:pid>")
+@admin_required
+def admin_update_product(user, pid):
+    """改任意商品的属性。管理员能改的：标题、价格、描述、标签、上下架状态。"""
+    p = db.session.get(Product, pid)
+    if p is None:
+        return jsonify({"error": "商品不存在"}), 404
+    data = request.get_json(silent=True) or {}
+
+    if "title" in data:
+        title = (data.get("title") or "").strip()
+        if not title:
+            return jsonify({"error": "商品名不能为空"}), 400
+        p.title = title[:80]
+
+    if "price" in data:
+        try:
+            price = round(float(data["price"]), 2)
+        except (TypeError, ValueError):
+            return jsonify({"error": "价格必须是数字"}), 400
+        if price < 0:
+            return jsonify({"error": "价格不能是负数"}), 400
+        p.price = price
+
+    if "description" in data:
+        p.description = (data.get("description") or "").strip()
+
+    if "tags" in data:
+        tags = data.get("tags")
+        if isinstance(tags, str):
+            tags = [t for t in re.split(r"[,，\s]+", tags) if t]
+        if not isinstance(tags, list):
+            tags = []
+        p.tags = json.dumps([str(t).strip()[:20] for t in tags if str(t).strip()][:8],
+                            ensure_ascii=False)
+
+    if "status" in data:
+        if data["status"] not in ADMIN_PRODUCT_STATUS:
+            return jsonify({"error": "状态只能是 on（上架）或 off（下架）"}), 400
+        p.status = data["status"]
+
+    db.session.commit()
+    return jsonify(_admin_product_row(p))
+
+
+def _admin_user_row(u):
+    return {
+        "id": u.id,
+        "username": u.username,
+        "avatar": u.avatar,
+        "balance": round(u.balance, 2),
+        "province": u.province or "",
+        "city": u.city or "",
+        "district": u.district or "",
+        "region": u.region_text,
+        "bio": u.bio or "",
+        "gender": u.gender or "",
+        "birthday": u.birthday or "",
+        "likes": u.likes or "",
+        "school": u.school or "",
+        # 牵连数量：删之前让人看清会连带删掉多少东西
+        "products": Product.query.filter_by(owner_id=u.id).count(),
+        "orders": Order.query.filter(
+            db.or_(Order.buyer_id == u.id, Order.seller_id == u.id)).count(),
+        "disputes": Dispute.query.filter(
+            db.or_(Dispute.buyer_id == u.id, Dispute.seller_id == u.id)).count(),
+        "created_at": u.created_at.strftime("%Y-%m-%d") if u.created_at else "",
+    }
+
+
+@app.get("/api/admin/users")
+@admin_required
+def admin_users(user):
+    rows = User.query.filter(User.is_admin.is_(False)).order_by(User.id.asc()).all()
+    return jsonify({"items": [_admin_user_row(u) for u in rows]})
+
+
+@app.put("/api/admin/users/<int:uid>")
+@admin_required
+def admin_update_user(user, uid):
+    """改任意账号的属性（用户名、密码、余额、头像、地区、资料项）。"""
+    u = db.session.get(User, uid)
+    if u is None:
+        return jsonify({"error": "账号不存在"}), 404
+    if u.is_admin:
+        return jsonify({"error": "管理员账号不在这里改"}), 400
+    data = request.get_json(silent=True) or {}
+
+    if "username" in data:
+        name = (data.get("username") or "").strip()
+        if len(name) < 2:
+            return jsonify({"error": "用户名至少 2 个字"}), 400
+        if name in RESERVED_USERNAMES:
+            return jsonify({"error": "这个用户名不可用"}), 400
+        exists = User.query.filter(User.username == name, User.id != u.id).first()
+        if exists:
+            return jsonify({"error": "这个用户名已经有人用了"}), 400
+        u.username = name
+
+    if data.get("password"):
+        if len(data["password"]) < 6:
+            return jsonify({"error": "密码至少 6 位"}), 400
+        u.password_hash = generate_password_hash(data["password"], method="pbkdf2:sha256")
+
+    if "balance" in data:
+        try:
+            u.balance = round(float(data["balance"]), 2)
+        except (TypeError, ValueError):
+            return jsonify({"error": "余额必须是数字"}), 400
+
+    if "avatar" in data:
+        u.avatar = (data.get("avatar") or "").strip()[:255]
+
+    for key, maxlen in (("bio", 200), ("gender", 10), ("birthday", 20),
+                        ("likes", 200), ("school", 60)):
+        if key in data:
+            u.__setattr__(key, (data.get(key) or "").strip()[:maxlen])
+
+    if "province" in data or "city" in data or "district" in data:
+        u.province = (data.get("province") or "").strip()[:32]
+        u.city = (data.get("city") or "").strip()[:32]
+        u.district = (data.get("district") or "").strip()[:32]
+
+    db.session.commit()
+    return jsonify(_admin_user_row(u))
+
+
+def _purge_user(uid):
+    """删账号，并清掉所有牵连数据。
+
+    顺序很重要：先删依附在案件/会话/商品上的子记录，再删它们本身，
+    最后删用户。漏掉任何一层，SQLite 里就会留下指向空气的外键。
+    """
+    product_ids = [p.id for p in Product.query.filter_by(owner_id=uid).all()]
+
+    # 1) 订单一：他是买卖一方的
+    order_ids = {o.id for o in Order.query.filter(
+        db.or_(Order.buyer_id == uid, Order.seller_id == uid)).all()}
+    # 2) 订单二：商品是他的（可能已被别人买走，但交易记录仍与他有关）
+    if product_ids:
+        order_ids |= {o.id for o in Order.query.filter(
+            Order.product_id.in_(product_ids)).all()}
+
+    # 3) 案件：当事人 / 发起人 / 涉及他的商品或订单
+    dispute_ids = {d.id for d in Dispute.query.filter(db.or_(
+        Dispute.buyer_id == uid, Dispute.seller_id == uid,
+        Dispute.created_by == uid)).all()}
+    if product_ids:
+        dispute_ids |= {d.id for d in Dispute.query.filter(
+            Dispute.product_id.in_(product_ids)).all()}
+    if order_ids:
+        dispute_ids |= {d.id for d in Dispute.query.filter(
+            Dispute.order_id.in_(list(order_ids))).all()}
+
+    # 4) 会话：他是买卖一方，或会话挂在他的商品上
+    conv_ids = {c.id for c in Conversation.query.filter(db.or_(
+        Conversation.buyer_id == uid, Conversation.seller_id == uid)).all()}
+    if product_ids:
+        conv_ids |= {c.id for c in Conversation.query.filter(
+            Conversation.product_id.in_(product_ids)).all()}
+
+    # 5) 商品评论（要处理"回复别人评论"的悬空引用）
+    comment_ids = {c.id for c in Comment.query.filter(
+        Comment.user_id == uid).all()}
+    if product_ids:
+        comment_ids |= {c.id for c in Comment.query.filter(
+            Comment.product_id.in_(product_ids)).all()}
+
+    if comment_ids:
+        Comment.query.filter(Comment.reply_to_id.in_(list(comment_ids))).update(
+            {"reply_to_id": None}, synchronize_session=False)
+
+    if dispute_ids:
+        DisputeComment.query.filter(
+            DisputeComment.dispute_id.in_(list(dispute_ids))).delete(synchronize_session=False)
+        DisputeVote.query.filter(
+            DisputeVote.dispute_id.in_(list(dispute_ids))).delete(synchronize_session=False)
+        Dispute.query.filter(Dispute.id.in_(list(dispute_ids))).delete(synchronize_session=False)
+
+    if conv_ids:
+        Message.query.filter(
+            Message.conversation_id.in_(list(conv_ids))).delete(synchronize_session=False)
+        Conversation.query.filter(
+            Conversation.id.in_(list(conv_ids))).delete(synchronize_session=False)
+
+    if order_ids:
+        Order.query.filter(Order.id.in_(list(order_ids))).delete(synchronize_session=False)
+
+    if comment_ids:
+        Comment.query.filter(Comment.id.in_(list(comment_ids))).delete(synchronize_session=False)
+
+    if product_ids:
+        Favorite.query.filter(Favorite.product_id.in_(product_ids)).delete(synchronize_session=False)
+        ProductView.query.filter(ProductView.product_id.in_(product_ids)).delete(synchronize_session=False)
+        Product.query.filter(Product.id.in_(product_ids)).delete(synchronize_session=False)
+
+    # 6) 他作为普通用户留下的痕迹（在别人商品/案件里的）
+    Message.query.filter(Message.sender_id == uid).delete(synchronize_session=False)
+    DisputeComment.query.filter(DisputeComment.user_id == uid).delete(synchronize_session=False)
+    DisputeVote.query.filter(DisputeVote.user_id == uid).delete(synchronize_session=False)
+    Favorite.query.filter(Favorite.user_id == uid).delete(synchronize_session=False)
+    ProductView.query.filter(ProductView.user_id == uid).delete(synchronize_session=False)
+    Follow.query.filter(db.or_(
+        Follow.follower_id == uid, Follow.followed_id == uid)).delete(synchronize_session=False)
+
+    User.query.filter(User.id == uid).delete(synchronize_session=False)
+    db.session.commit()
+
+
+@app.delete("/api/admin/users/<int:uid>")
+@admin_required
+def admin_delete_user(user, uid):
+    u = db.session.get(User, uid)
+    if u is None:
+        return jsonify({"error": "账号不存在"}), 404
+    if u.is_admin:
+        return jsonify({"error": "管理员账号不能删"}), 400
+    name = u.username
+    _purge_user(u.id)
+    return jsonify({"ok": True, "username": name})
+
+
+@app.get("/api/admin/disputes")
+@admin_required
+def admin_disputes(user):
+    # 先把到期的判了，保证管理面板和用户端看到的状态一致
+    for d in Dispute.query.filter_by(status="open").all():
+        _judge_if_due(d)
+    rows = Dispute.query.order_by(Dispute.id.desc()).all()
+    return jsonify({"items": [d.to_dict() for d in rows]})
+
+
+@app.put("/api/admin/disputes/<int:did>")
+@admin_required
+def admin_update_dispute(user, did):
+    """改案件的结束时间，或直接指定结果（也可撤销已判的结果重新开庭）。"""
+    d = db.session.get(Dispute, did)
+    if d is None:
+        return jsonify({"error": "案件不存在"}), 404
+    data = request.get_json(silent=True) or {}
+
+    if data.get("deadline"):
+        raw = str(data["deadline"]).strip().replace("T", " ")
+        try:
+            d.deadline = datetime.strptime(raw[:16], "%Y-%m-%d %H:%M")
+        except ValueError:
+            return jsonify({"error": "时间格式不对，应为 2026-11-28 18:00"}), 400
+
+    if "verdict" in data:
+        verdict = data.get("verdict") or ""
+        if verdict in ("buyer", "seller", "draw"):
+            _apply_verdict(d, verdict, by_admin=True)
+        elif verdict == "":
+            # 已判决的案件不能撤销：钱和订单已经按上一次结果动过了，
+            # 撤销只会让案件记录和实际账目对不上。要改就改成另一个结果。
+            if d.status == "closed":
+                return jsonify({
+                    "error": "这个案件已经判过、款项也处理过了，不能撤销；"
+                             "要改请直接选另一个结果"
+                }), 400
+            # 还没判的案子选空 = 只改时间，保持审理中
+        else:
+            return jsonify({"error": "结果只能是 buyer / seller / draw / 空"}), 400
+
+    db.session.commit()
+    return jsonify(d.to_dict())
+
+
 with app.app_context():
     db.create_all()
     ensure_columns()
@@ -2239,6 +2629,7 @@ with app.app_context():
     seed_demo_disputes()      # 小法庭空着的时候放两单演示案件
     backfill_seed_regions()   # 老库的演示账号补地区（已有设置的不动）
     backfill_user_coords()    # 老库的演示账号补定位坐标
+    ensure_admin()            # 超级管理员账号（admin / 123456）
 
 
 def _ensure_https_cert(lan_ip_str):

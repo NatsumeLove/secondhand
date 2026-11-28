@@ -23,6 +23,8 @@ const ICONS = {
   box: icon('<path d="M8 2.2 13.4 5v6L8 13.8 2.6 11V5z"/><path d="M2.6 5 8 7.8 13.4 5"/><path d="M8 7.8v6"/>'),
   receipt: icon('<path d="M4 2.4h8v11.2l-2-1.2-2 1.2-2-1.2-2 1.2z"/><path d="M6 5.6h4M6 8h4"/>'),
   court: icon('<path d="M8 2.8v9.6M4.4 4.6h7.2M4.4 4.6 2.6 8.8a2.1 2.1 0 0 0 3.6 0zM11.6 4.6 9.8 8.8a2.1 2.1 0 0 0 3.6 0zM5.8 13.6h4.4"/>'),
+  // 管理面板：盾牌 + 勾（只有 admin 能看到这个入口）
+  admin: icon('<path d="M8 2.2 12.8 4v4.2c0 3-2 4.9-4.8 5.8-2.8-.9-4.8-2.8-4.8-5.8V4z"/><path d="M6.1 8.1 7.4 9.5 10 6.7"/>'),
 }
 
 /* ---------- 请求封装 ---------- */
@@ -171,6 +173,14 @@ const __app = createApp({
       agentLoading: false,
       petBroken: false,    // 3D 看板起不来（没有 WebGL）时退回悬浮球
 
+      // 管理面板（只有 admin 账号会用到）
+      adminTab: 'products',     // products / users / disputes
+      adminProducts: [],
+      adminUsers: [],
+      adminDisputes: [],
+      adminEdit: null,          // { type, id, title, meta, form }
+      adminBusy: false,
+
       toast: null,
     }
   },
@@ -220,7 +230,8 @@ const __app = createApp({
     // 3D 看板只在登录后出现；退出登录就销毁，别让它在登录页后台空转。
     // 登录瞬间 .app 分支还没挂载，要等 nextTick 拿到 ref 再启动
     me(v) {
-      if (v) nextTick(() => this.startPet())
+      // 管理员不配小助手：桌宠不起，退出登录时照样销毁
+      if (v && !v.is_admin) nextTick(() => this.startPet())
       else this.stopPet()
     },
   },
@@ -234,9 +245,17 @@ const __app = createApp({
     async boot() {
       try {
         this.me = await api('/me')
+        this.presetTags = await api('/tags')
+
+        // 管理员：默认进管理面板，刷新 #mine 时停在「我的」
+        if (this.me.is_admin) {
+          this.tab = location.hash.replace('#', '') === 'mine' ? 'mine' : 'admin'
+          if (this.tab === 'admin') await this.loadAdminTab()
+          return
+        }
+
         this.profileForm.username = this.me.username
         this.syncProfileRegion()
-        this.presetTags = await api('/tags')
         await this.ensureRegions()
         await this.loadProducts()
         this.autoLocate()          // 每次打开页面：静默重定位，刷新所有人的距离
@@ -276,9 +295,18 @@ const __app = createApp({
           method: 'POST',
           body: JSON.stringify(this.authForm),
         })
+        this.presetTags = await api('/tags')
+
+        // 管理员：登录后直接落到管理面板
+        if (this.me.is_admin) {
+          this.tab = 'admin'
+          await this.loadAdminTab()
+          this.notify(`欢迎回来，${this.me.username}`)
+          return
+        }
+
         this.profileForm.username = this.me.username
         this.syncProfileRegion()
-        this.presetTags = await api('/tags')
         await this.ensureRegions()
         await this.loadProducts()
         this.autoLocate()          // 登录后同样静默重定位一次
@@ -1365,6 +1393,158 @@ const __app = createApp({
       }
     },
 
+    /* ================= 管理面板（仅 admin） ================= */
+
+    async loadAdminTab() {
+      if (this.adminTab === 'users') await this.loadAdminUsers()
+      else if (this.adminTab === 'disputes') await this.loadAdminDisputes()
+      else await this.loadAdminProducts()
+    },
+
+    async switchAdminTab(key) {
+      this.adminTab = key
+      await this.loadAdminTab()
+    },
+
+    async loadAdminProducts() {
+      try {
+        const res = await api('/admin/products')
+        this.adminProducts = res.items || []
+      } catch (e) {
+        this.notify(e.message, 'err')
+      }
+    },
+
+    async loadAdminUsers() {
+      try {
+        const res = await api('/admin/users')
+        this.adminUsers = res.items || []
+      } catch (e) {
+        this.notify(e.message, 'err')
+      }
+    },
+
+    async loadAdminDisputes() {
+      try {
+        const res = await api('/admin/disputes')
+        this.adminDisputes = res.items || []
+      } catch (e) {
+        this.notify(e.message, 'err')
+      }
+    },
+
+    openAdminProduct(p) {
+      this.adminEdit = {
+        type: 'product',
+        id: p.id,
+        title: `编辑商品 · #${p.id}`,
+        meta: '',
+        form: {
+          title: p.title,
+          price: p.price,
+          tags: (p.tags || []).join('，'),
+          description: p.description || '',
+          status: p.status,
+        },
+      }
+    },
+
+    openAdminUser(u) {
+      this.adminEdit = {
+        type: 'user',
+        id: u.id,
+        title: `编辑账号 · ${u.username}`,
+        meta: '',
+        form: {
+          username: u.username,
+          password: '',
+          balance: u.balance,
+          avatar: u.avatar || '',
+          province: u.province || '',
+          city: u.city || '',
+          district: u.district || '',
+          bio: u.bio || '',
+          gender: u.gender || '',
+          birthday: u.birthday || '',
+          likes: u.likes || '',
+          school: u.school || '',
+        },
+      }
+    },
+
+    openAdminDispute(d) {
+      const now = d.status === 'open' ? '审理中' : (d.verdict_text || '已结束')
+      this.adminEdit = {
+        type: 'dispute',
+        id: d.id,
+        title: `处理案件 · #${d.id}`,
+        meta: `${d.buyer.username} 诉 ${d.seller.username}（${d.product.title}）`
+              + ` · 当前：${now} · 票数 ${d.votes_buyer}:${d.votes_seller}`,
+        form: {
+          deadline: (d.deadline || '').replace(' ', 'T'),
+          verdict: d.verdict || '',
+        },
+      }
+    },
+
+    async saveAdminEdit() {
+      const ed = this.adminEdit
+      if (!ed) return
+      this.adminBusy = true
+      try {
+        if (ed.type === 'product') {
+          await api(`/admin/products/${ed.id}`, {
+            method: 'PUT',
+            body: JSON.stringify(ed.form),
+          })
+          await this.loadAdminProducts()
+          this.notify('商品已更新')
+        } else if (ed.type === 'user') {
+          const body = { ...ed.form }
+          if (!body.password) delete body.password   // 留空 = 不改密码
+          await api(`/admin/users/${ed.id}`, {
+            method: 'PUT',
+            body: JSON.stringify(body),
+          })
+          await this.loadAdminUsers()
+          this.notify('账号已更新')
+        } else {
+          await api(`/admin/disputes/${ed.id}`, {
+            method: 'PUT',
+            body: JSON.stringify(ed.form),
+          })
+          await this.loadAdminDisputes()
+          this.notify('案件已更新')
+        }
+        this.adminEdit = null
+      } catch (e) {
+        this.notify(e.message, 'err')
+      } finally {
+        this.adminBusy = false
+      }
+    },
+
+    async deleteAdminUser(u) {
+      // 先把代价说清楚：删账号会连商品、订单、案件一起清掉，不可撤销
+      const ok = confirm(
+        `删除「${u.username}」后不可恢复。\n\n` +
+        `会一起消失的有：\n` +
+        `· 名下 ${u.products} 件商品\n` +
+        `· 相关 ${u.orders} 笔订单\n` +
+        `· 涉及 ${u.disputes} 个小法庭案件\n` +
+        `· 他的会话、消息、评价、收藏、关注关系\n\n` +
+        `确定删除吗？`
+      )
+      if (!ok) return
+      try {
+        await api(`/admin/users/${u.id}`, { method: 'DELETE' })
+        await this.loadAdminUsers()
+        this.notify(`已删除账号 ${u.username}`)
+      } catch (e) {
+        this.notify(e.message, 'err')
+      }
+    },
+
     /* ================= 卖家小铺主页 ================= */
 
     // 点卖家头像/名字 → 进入他的小铺
@@ -1635,6 +1815,7 @@ const __app = createApp({
       if (key === 'history') await this.loadHistory()
       if (key === 'following') await this.loadFollowing()
       if (key === 'followers') await this.loadFollowers()
+      if (key === 'admin') await this.loadAdminTab()
       if (key === 'editme') this.syncProfileRegion()
       if (key === 'me') {
         this.profileForm.username = this.me.username

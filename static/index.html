@@ -56,14 +56,23 @@
       </button>
 
       <nav class="nav">
-        <button v-for="t in tabs" :key="t.key" class="nav-item"
-                :class="{active: tab===t.key}" @click="switchTab(t.key)">
-          <span class="nav-icon" v-html="t.icon"></span>
-          <span>{{ t.label }}</span>
-          <span class="nav-dot" v-if="t.key==='msg' && unread">{{ unread > 99 ? '99+' : unread }}</span>
+        <!-- 管理员登录后整个顶栏只剩两块：管理面板 + 我的 -->
+        <button v-if="me.is_admin" class="nav-item" :class="{active: tab==='admin'}"
+                @click="switchTab('admin')">
+          <span class="nav-icon" v-html="ICONS.admin"></span>
+          <span>管理面板</span>
         </button>
 
-        <!-- 我的：点击进入个人中心总览页（交易/收藏/浏览/关注/资料都在这里） -->
+        <template v-else>
+          <button v-for="t in tabs" :key="t.key" class="nav-item"
+                  :class="{active: tab===t.key}" @click="switchTab(t.key)">
+            <span class="nav-icon" v-html="t.icon"></span>
+            <span>{{ t.label }}</span>
+            <span class="nav-dot" v-if="t.key==='msg' && unread">{{ unread > 99 ? '99+' : unread }}</span>
+          </button>
+        </template>
+
+        <!-- 我的：普通账号是个人中心总览；管理员只有一个退出登录 -->
         <button class="nav-item" :class="{active: mineActive}" @click="switchTab('mine')">
           <span class="nav-icon" v-html="ICONS.mine"></span>
           <span>我的</span>
@@ -493,6 +502,17 @@
 
       <!-- ---------- 我的（个人中心总览） ---------- -->
       <section class="page page-mine" v-show="tab==='mine'">
+        <!-- 管理员版：没有任何个人资料，只留一个退出登录 -->
+        <div class="admin-me" v-if="me.is_admin">
+          <div class="admin-me-card">
+            <span class="admin-seal">掌</span>
+            <h2>管理员 · {{ me.username }}</h2>
+            <p class="muted xs">这个账号只用于后台管理，不参与买卖，也不保存个人资料。</p>
+            <button class="btn btn-logout btn-block" @click="doLogout">退出登录</button>
+          </div>
+        </div>
+
+        <template v-else>
         <div class="mine-hero">
           <img class="avatar avatar-lg mine-hero-avatar"
                :src="me.avatar || '/static/default-avatar.svg'" alt="">
@@ -556,6 +576,93 @@
               <span class="mine-tile-arrow">›</span>
             </button>
           </div>
+        </div>
+        </template>
+      </section>
+
+      <!-- ---------- 管理面板（仅 admin 可见） ---------- -->
+      <section class="page page-admin" v-show="tab==='admin'" v-if="me.is_admin">
+        <div class="admin-titlebar">
+          <h2>管理面板</h2>
+          <span class="admin-sub">以 {{ me.username }} 的身份管理</span>
+        </div>
+
+        <div class="admin-tabs">
+          <button class="admin-tab" :class="{active: adminTab==='products'}"
+                  @click="switchAdminTab('products')">
+            商品管理<span class="admin-count">{{ adminProducts.length }}</span>
+          </button>
+          <button class="admin-tab" :class="{active: adminTab==='users'}"
+                  @click="switchAdminTab('users')">
+            账号管理<span class="admin-count">{{ adminUsers.length }}</span>
+          </button>
+          <button class="admin-tab" :class="{active: adminTab==='disputes'}"
+                  @click="switchAdminTab('disputes')">
+            小法庭管理<span class="admin-count">{{ adminDisputes.length }}</span>
+          </button>
+        </div>
+
+        <!-- 商品：改属性、改上下架 -->
+        <div class="admin-panel" v-if="adminTab==='products'">
+          <div class="admin-list" v-if="adminProducts.length">
+            <div class="admin-item" v-for="p in adminProducts" :key="p.id">
+              <img class="admin-thumb" :src="p.image || '/static/default-cover.svg'" alt="">
+              <div class="admin-main">
+                <div class="admin-name">{{ p.title }}</div>
+                <div class="admin-meta">
+                  #{{ p.id }} · 卖家 {{ p.owner.username }} ·
+                  {{ p.tags.length ? p.tags.join(' / ') : '无标签' }}
+                </div>
+              </div>
+              <div class="admin-price">¥{{ p.price }}</div>
+              <span class="admin-status" :class="p.status==='on' ? 'is-on' : 'is-off'">
+                {{ p.status === 'on' ? '在售' : '已下架' }}
+              </span>
+              <button class="btn btn-ghost btn-sm" @click="openAdminProduct(p)">编辑</button>
+            </div>
+          </div>
+          <div class="empty" v-else><p>还没有商品</p></div>
+        </div>
+
+        <!-- 账号：改属性、删账号（管理员自己不在列表里） -->
+        <div class="admin-panel" v-else-if="adminTab==='users'">
+          <div class="admin-list" v-if="adminUsers.length">
+            <div class="admin-item" v-for="u in adminUsers" :key="u.id">
+              <img class="admin-avatar" :src="u.avatar || '/static/default-avatar.svg'" alt="">
+              <div class="admin-main">
+                <div class="admin-name">{{ u.username }}</div>
+                <div class="admin-meta">
+                  #{{ u.id }} · {{ u.region || '未设地区' }} ·
+                  {{ u.products }} 件商品 · {{ u.orders }} 笔订单 · {{ u.disputes }} 个案件
+                </div>
+              </div>
+              <div class="admin-price">¥{{ u.balance }}</div>
+              <button class="btn btn-ghost btn-sm" @click="openAdminUser(u)">编辑</button>
+              <button class="btn btn-danger-soft btn-sm" @click="deleteAdminUser(u)">删除</button>
+            </div>
+          </div>
+          <div class="empty" v-else><p>没有其他账号</p></div>
+        </div>
+
+        <!-- 小法庭：改结束时间、改结果 -->
+        <div class="admin-panel" v-else>
+          <div class="admin-list" v-if="adminDisputes.length">
+            <div class="admin-item" v-for="d in adminDisputes" :key="d.id">
+              <img class="admin-thumb" :src="d.product.image || '/static/default-cover.svg'" alt="">
+              <div class="admin-main">
+                <div class="admin-name">#{{ d.id }} · {{ d.product.title }}</div>
+                <div class="admin-meta">
+                  {{ d.buyer.username }} 诉 {{ d.seller.username }} ·
+                  票数 {{ d.votes_buyer }}:{{ d.votes_seller }} · 截止 {{ d.deadline }}
+                </div>
+              </div>
+              <span class="admin-status" :class="d.status==='open' ? 'is-on' : 'is-closed'">
+                {{ d.status === 'open' ? '审理中' : (d.verdict_text || '已结束') }}
+              </span>
+              <button class="btn btn-ghost btn-sm" @click="openAdminDispute(d)">处理</button>
+            </div>
+          </div>
+          <div class="empty" v-else><p>还没有案件</p></div>
         </div>
       </section>
 
@@ -1049,11 +1156,140 @@
 
     </main>
 
+    <!-- ---------- 管理面板：编辑弹窗 ---------- -->
+    <div class="modal-mask" v-if="adminEdit" @click.self="adminEdit = null">
+      <div class="admin-modal">
+        <div class="admin-modal-head">
+          <h3>{{ adminEdit.title }}</h3>
+          <button class="admin-modal-close" @click="adminEdit = null">✕</button>
+        </div>
+
+        <!-- 商品：属性 + 上下架 -->
+        <div class="admin-form" v-if="adminEdit.type==='product'">
+          <label class="afield">
+            <span>商品名</span>
+            <input v-model="adminEdit.form.title">
+          </label>
+          <div class="afield-row">
+            <label class="afield">
+              <span>价格</span>
+              <input v-model.number="adminEdit.form.price" type="number" min="0" step="0.01">
+            </label>
+            <label class="afield">
+              <span>状态</span>
+              <select v-model="adminEdit.form.status">
+                <option value="on">在售（上架）</option>
+                <option value="off">已下架</option>
+              </select>
+            </label>
+          </div>
+          <label class="afield">
+            <span>标签（逗号分隔）</span>
+            <input v-model="adminEdit.form.tags">
+          </label>
+          <label class="afield">
+            <span>描述</span>
+            <textarea v-model="adminEdit.form.description" rows="4"></textarea>
+          </label>
+        </div>
+
+        <!-- 账号：各项属性 -->
+        <div class="admin-form" v-else-if="adminEdit.type==='user'">
+          <div class="afield-row">
+            <label class="afield">
+              <span>用户名</span>
+              <input v-model="adminEdit.form.username">
+            </label>
+            <label class="afield">
+              <span>新密码（留空不改）</span>
+              <input v-model="adminEdit.form.password" placeholder="至少 6 位">
+            </label>
+          </div>
+          <div class="afield-row">
+            <label class="afield">
+              <span>余额</span>
+              <input v-model.number="adminEdit.form.balance" type="number" step="0.01">
+            </label>
+            <label class="afield">
+              <span>头像地址</span>
+              <input v-model="adminEdit.form.avatar" placeholder="/static/... 或 http...">
+            </label>
+          </div>
+          <div class="afield-row">
+            <label class="afield">
+              <span>省</span>
+              <input v-model="adminEdit.form.province">
+            </label>
+            <label class="afield">
+              <span>市</span>
+              <input v-model="adminEdit.form.city">
+            </label>
+            <label class="afield">
+              <span>区 / 县</span>
+              <input v-model="adminEdit.form.district">
+            </label>
+          </div>
+          <label class="afield">
+            <span>个人简介</span>
+            <textarea v-model="adminEdit.form.bio" rows="2"></textarea>
+          </label>
+          <div class="afield-row">
+            <label class="afield">
+              <span>性别</span>
+              <input v-model="adminEdit.form.gender">
+            </label>
+            <label class="afield">
+              <span>生日</span>
+              <input v-model="adminEdit.form.birthday" placeholder="YYYY-MM-DD">
+            </label>
+            <label class="afield">
+              <span>院校</span>
+              <input v-model="adminEdit.form.school">
+            </label>
+          </div>
+          <label class="afield">
+            <span>喜欢的（逗号分隔）</span>
+            <input v-model="adminEdit.form.likes">
+          </label>
+        </div>
+
+        <!-- 小法庭：结束时间 + 结果 -->
+        <div class="admin-form" v-else>
+          <p class="admin-hint">{{ adminEdit.meta }}</p>
+          <label class="afield">
+            <span>结束时间（到点按票数自动宣判）</span>
+            <input v-model="adminEdit.form.deadline" type="datetime-local">
+          </label>
+          <label class="afield">
+            <span>结果</span>
+            <select v-model="adminEdit.form.verdict">
+              <option value="">只改结束时间（不动结论）</option>
+              <option value="buyer">买家胜诉（退款、取消订单）</option>
+              <option value="seller">卖家胜诉（订单完成，货款归卖家）</option>
+              <option value="draw">平局（订单维持原状）</option>
+            </select>
+          </label>
+          <p class="admin-hint xs">
+            改结果会真的动钱和订单：买家胜诉退钱退单，卖家胜诉把货款给卖家；
+            只在订单还没结束（待发货/待收货）时生效。已经判过的案件不能撤销，
+            但可以改成另一个结果。
+          </p>
+        </div>
+
+        <div class="admin-modal-foot">
+          <button class="btn btn-ghost" @click="adminEdit = null">取消</button>
+          <button class="btn btn-primary" :disabled="adminBusy" @click="saveAdminEdit">
+            {{ adminBusy ? '保存中…' : '保存' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- ---------- AI 淘好物：3D 看板"小余"（登录后在整个屏幕底层走动，见 agent-pet.js） ---------- -->
-    <div class="agent-pet" ref="agentPet" v-show="!!me"></div>
+    <div class="agent-pet" ref="agentPet" v-show="!!me && !me.is_admin"></div>
 
     <!-- 浏览器不支持 WebGL 时的兜底：退回原来的悬浮球 -->
-    <button class="agent-fab" v-if="petBroken && !agentOpen" @click="openAgent" title="AI 帮你淘好物">
+    <button class="agent-fab" v-if="petBroken && !agentOpen && !me.is_admin" @click="openAgent" title="AI 帮你淘好物">
       <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor"
            stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <rect x="4" y="7" width="16" height="12" rx="4"></rect>

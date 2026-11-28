@@ -58,6 +58,9 @@ class User(db.Model):
     # 定位坐标：浏览器定位写入精确值；只填了常住地时按城市名查表兜底
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
+    # 超级管理员（admin/123456）：只有管理面板和退出登录，不参与买卖，
+    # 也不出现在任何普通用户能看到的地方（商品卖家、小铺、关注/粉丝列表）
+    is_admin = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, default=datetime.now)
 
     @property
@@ -83,6 +86,7 @@ class User(db.Model):
             "school": self.school or "",
             # 坐标给前端判断"是否已定位"，精确值不下发给其他用户（隐私）
             "has_geo": self.latitude is not None and self.longitude is not None,
+            "is_admin": bool(self.is_admin),
         }
 
 
