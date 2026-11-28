@@ -282,8 +282,9 @@
                   <div class="offer-title">改价申请</div>
                   <div class="offer-price">¥{{ m.price }}</div>
                   <div class="offer-state" v-if="m.accepted">卖家已同意</div>
-                  <button v-else-if="m.sender_id!==me.id" class="btn btn-primary btn-sm"
-                          @click="acceptOffer(m)">同意改价</button>
+                  <button v-else-if="m.sender_id!==me.id && activeConv.product.status==='on'"
+                          class="btn btn-primary btn-sm" @click="acceptOffer(m)">同意改价</button>
+                  <div v-else-if="m.sender_id!==me.id" class="offer-state">商品已成交，此申请失效</div>
                 </template>
                 <template v-else>{{ m.content }}</template>
                 <span class="bubble-time">{{ m.created_at }}</span>
@@ -293,11 +294,15 @@
           </div>
 
           <div class="chat-input">
-            <button class="btn btn-ghost btn-sm" @click="showOffer = !showOffer">申请改价</button>
-            <div class="offer-panel" v-if="showOffer">
-              <input v-model.number="offerPrice" type="number" placeholder="你希望的价格" min="0">
-              <button class="btn btn-primary btn-sm" @click="sendOffer">提交</button>
-            </div>
+            <template v-if="activeConv.product.status === 'on'">
+              <button class="btn btn-ghost btn-sm" @click="showOffer = !showOffer">申请改价</button>
+              <div class="offer-panel" v-if="showOffer">
+                <input v-model.number="offerPrice" type="number" placeholder="你希望的价格" min="0">
+                <button class="btn btn-primary btn-sm" @click="sendOffer">提交</button>
+              </div>
+            </template>
+            <span v-else class="offer-locked"
+                  title="商品已成交或已下架，只有仍在售的商品才能议价">不可改价</span>
             <input class="chat-text" v-model="chatText" placeholder="输入消息…" @keyup.enter="sendText">
             <button class="btn btn-primary" @click="sendText">发送</button>
           </div>

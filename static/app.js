@@ -958,6 +958,10 @@ const __app = createApp({
     async sendOffer() {
       const price = Number(this.offerPrice)
       if (!price || price <= 0) return this.notify('请输入一个有效价格', 'err')
+      // 成交（或卖家下架）之后商品就不在售了，议价没有意义，后端也会拦
+      if (this.activeConv.product.status !== 'on') {
+        return this.notify('商品已成交或下架，无法改价', 'err')
+      }
       try {
         await api(`/conversations/${this.activeConv.id}/messages`, {
           method: 'POST',

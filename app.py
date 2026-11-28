@@ -1474,6 +1474,11 @@ def send_message(user, cid):
     data = request.get_json(silent=True) or {}
 
     if data.get("offer_price") is not None:
+        # 改价只对"还挂在这个卖家名下"的商品有意义。
+        # 一旦成交，buy() 会把商品过户到买家名下（product.owner_id 变了），
+        # 这个会话就变成了历史会话——再改价改的是别人正在卖的东西，必须拦住。
+        if conv.product.owner_id != conv.seller_id:
+            return jsonify({"error": "这件商品已经成交，不能再申请改价了"}), 400
         try:
             price = round(float(data["offer_price"]), 2)
         except (TypeError, ValueError):
@@ -1516,6 +1521,9 @@ def accept_offer(user, mid):
         return jsonify({"error": "不能同意自己发出的申请"}), 400
     if msg.type != "offer":
         return jsonify({"error": "这条消息不是改价申请"}), 400
+    # 同上：商品已经不在卖家名下，说明已经成交，旧申请不能再被"同意"
+    if conv.product.owner_id != conv.seller_id:
+        return jsonify({"error": "这件商品已经成交，这条改价申请已失效"}), 400
     if msg.accepted:
         return jsonify({"error": "这条申请已经处理过了"}), 400
 
