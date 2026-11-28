@@ -104,7 +104,7 @@
                 <span class="muted xs">
                   {{ total }} 件{{ searchApplied ? '匹配' : '在售' }} · 已显示 {{ products.length }}
                 </span>
-                <button class="btn btn-ghost btn-sm" @click="reshuffle">换一批</button>
+                <button class="btn btn-solid btn-sm" @click="reshuffle">换一批</button>
               </div>
             </div>
 
@@ -144,13 +144,13 @@
             <div class="empty" v-else>
               <p v-if="searchApplied">没有找到商品名包含「{{ searchApplied }}」的在售商品</p>
               <p v-else>没有符合条件的商品</p>
-              <button class="btn btn-ghost btn-sm" @click="clearFilters">
+              <button class="btn btn-solid btn-sm" @click="clearFilters">
                 {{ searchApplied ? '清空搜索和筛选' : '清空筛选条件' }}
               </button>
             </div>
 
             <div class="load-more" v-if="hasMore">
-              <button class="btn btn-ghost" :disabled="loadingMore" @click="loadMore">
+              <button class="btn btn-solid" :disabled="loadingMore" @click="loadMore">
                 {{ loadingMore ? '加载中…' : `加载更多（还有 ${total - products.length} 件）` }}
               </button>
             </div>
@@ -423,7 +423,7 @@
       <!-- ---------- 用户中心 ---------- -->
       <section class="page page-me" v-show="tab==='me'">
         <div class="pd-top">
-          <button class="btn btn-ghost btn-sm" @click="switchTab('mine')">← 返回我的</button>
+          <button class="btn btn-solid btn-sm" @click="switchTab('mine')">← 返回我的</button>
         </div>
         <div class="profile">
           <div class="profile-head">
@@ -629,7 +629,7 @@
       <section class="page page-user" v-show="tab==='user'">
         <div v-if="shop">
           <div class="pd-top">
-            <button class="btn btn-ghost btn-sm" @click="closeShop">← 返回</button>
+            <button class="btn btn-solid btn-sm" @click="closeShop">← 返回</button>
           </div>
           <div class="shop-head">
             <img class="avatar avatar-lg" :src="shop.avatar || '/static/default-avatar.svg'" alt="">
@@ -669,7 +669,7 @@
       <section class="page page-profile" v-show="tab==='profile'">
         <div v-if="profile">
           <div class="pd-top prof-top">
-            <button class="btn btn-ghost btn-sm" @click="closeProfile">← 返回</button>
+            <button class="btn btn-solid btn-sm" @click="closeProfile">← 返回</button>
             <button class="btn btn-outline btn-sm" @click="openEditMe">编辑主页</button>
           </div>
 
@@ -769,7 +769,7 @@
       <!-- ---------- 编辑主页（闲鱼风格资料行） ---------- -->
       <section class="page page-editme" v-show="tab==='editme'">
         <div class="pd-top editme-top">
-          <button class="btn btn-ghost btn-sm" @click="backToProfile">← 返回</button>
+          <button class="btn btn-solid btn-sm" @click="backToProfile">← 返回</button>
           <h2 class="editme-title">编辑主页</h2>
         </div>
 
@@ -1224,7 +1224,7 @@
     <section class="page product-page" v-show="tab==='product'">
       <div v-if="detail">
         <div class="pd-top">
-          <button class="btn btn-ghost btn-sm" @click="closeDetail">← 返回</button>
+          <button class="btn btn-solid btn-sm" @click="closeDetail">← 返回</button>
         </div>
 
         <div class="pd-layout">

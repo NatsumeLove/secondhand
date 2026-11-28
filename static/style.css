@@ -111,6 +111,21 @@ input, textarea { font-family: var(--font-body); font-size: 14px; }
   box-shadow: var(--glow);
 }
 
+/* 深色背景（首页列表头、子页面顶栏、加载更多）上用这个：
+   实心米绢底 + 墨字，透明底在暗背景上会糊成一片，看不清 */
+.btn-solid {
+  background: linear-gradient(180deg, #f8efdc 0%, #e9d9b8 100%);
+  border-color: rgba(203, 165, 96, 0.85);
+  color: #4a3319;
+  box-shadow: 0 2px 10px rgba(10, 5, 2, 0.35), inset 0 1px 0 rgba(255, 252, 244, 0.9);
+}
+.btn-solid:hover:not(:disabled) {
+  background: linear-gradient(180deg, #fdf7e9 0%, #f0e2c6 100%);
+  border-color: var(--gold);
+  color: #33210d;
+  box-shadow: 0 0 16px rgba(217, 164, 65, 0.45), 0 2px 10px rgba(10, 5, 2, 0.4);
+}
+
 .btn-outline { background: transparent; border-color: var(--brand); color: var(--brand-dark); }
 .btn-outline:hover { background: var(--brand-soft); box-shadow: var(--glow); }
 
@@ -1830,7 +1845,7 @@ select:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* —— 编辑主页（资料行） —— */
 .editme-top { display: flex; align-items: center; gap: 12px; }
-.editme-title { font-size: 18px; }
+.editme-title { font-size: 18px; color: #f3e3bd; text-shadow: 0 1px 10px rgba(10, 5, 2, 0.85); }
 
 .editme-card {
   background: var(--surface);
