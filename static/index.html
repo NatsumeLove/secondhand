@@ -49,8 +49,8 @@
   <div class="app" v-else>
 
     <header class="topbar">
-      <!-- 左上角头像 → 个人主页（闲鱼风格：粉丝/关注/信用/宝贝评价动态） -->
-      <button class="user-chip" :class="{active: tab==='profile' || tab==='editme'}" @click="switchTab('profile')">
+      <!-- 左上角头像 → 我的（和导航栏「我的」是同一个去处） -->
+      <button class="user-chip" :class="{active: mineActive}" @click="switchTab('mine')">
         <img class="avatar" :src="me.avatar || '/static/default-avatar.svg'" alt="">
         <span class="user-name">{{ me.username }}</span>
       </button>
@@ -494,9 +494,8 @@
       <!-- ---------- 我的（个人中心总览） ---------- -->
       <section class="page page-mine" v-show="tab==='mine'">
         <div class="mine-hero">
-          <img class="avatar avatar-lg mine-hero-avatar clickable"
-               :src="me.avatar || '/static/default-avatar.svg'" alt=""
-               @click="switchTab('profile')" title="进入个人主页">
+          <img class="avatar avatar-lg mine-hero-avatar"
+               :src="me.avatar || '/static/default-avatar.svg'" alt="">
           <div class="mine-hero-info">
             <h2>{{ me.username }}</h2>
             <p class="mine-loc">{{ me.region || '尚未设置所在地区，去「编辑主页」填写后可用同城功能' }}</p>
@@ -670,111 +669,10 @@
         </div>
       </section>
 
-      <!-- ---------- 个人主页（闲鱼风格：左上角头像点进来） ---------- -->
-      <section class="page page-profile" v-show="tab==='profile'">
-        <div v-if="profile">
-          <div class="pd-top prof-top">
-            <button class="btn btn-solid btn-sm" @click="closeProfile">← 返回</button>
-            <button class="btn btn-outline btn-sm" @click="openEditMe">编辑主页</button>
-          </div>
-
-          <div class="prof-hero">
-            <img class="avatar avatar-lg prof-avatar"
-                 :src="profile.avatar || '/static/default-avatar.svg'" alt="">
-            <div class="prof-hero-info">
-              <h2 class="prof-name">{{ profile.username }}</h2>
-              <div class="prof-stats">
-                <span><b>{{ profile.followers }}</b> 粉丝</span>
-                <span class="prof-stat-div"></span>
-                <span><b>{{ profile.following }}</b> 关注</span>
-                <span class="muted xs">刚刚来过</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="prof-tags">
-            <span class="prof-ip" v-if="profile.region_short">IP · {{ profile.region_short }}</span>
-            <span class="prof-tag" v-if="profile.gender">{{ profile.gender }}</span>
-            <span class="prof-tag" v-if="profile.school">{{ profile.school }}</span>
-          </div>
-
-          <p class="prof-bio">
-            {{ profile.bio || '这家伙很神秘，没有写个人简介。' }}
-            <button class="prof-more" @click="openEditMe">更多 ›</button>
-          </p>
-
-          <div class="prof-credit">
-            <div class="credit-item">
-              <span class="credit-face credit-face-buyer">{{ profile.buyer_credit.level }}</span>
-              <span class="credit-text">买家信用 · {{ profile.buyer_credit.level }} · {{ profile.buyer_credit.rate }}</span>
-            </div>
-            <div class="credit-item">
-              <span class="credit-face credit-face-seller">{{ profile.seller_credit.level }}</span>
-              <span class="credit-text">卖家信用 · {{ profile.seller_credit.level }} · {{ profile.seller_credit.rate }}</span>
-            </div>
-          </div>
-
-          <div class="prof-tabs">
-            <button class="prof-tab" :class="{active: profileTab==='goods'}" @click="profileTab='goods'">宝贝</button>
-            <button class="prof-tab" :class="{active: profileTab==='comments'}" @click="profileTab='comments'">评价 {{ profile.comments_count }}</button>
-            <button class="prof-tab" :class="{active: profileTab==='feeds'}" @click="profileTab='feeds'">动态 {{ profile.sold_count }}</button>
-          </div>
-
-          <!-- 宝贝：在售商品 -->
-          <div v-if="profileTab==='goods'">
-            <div class="grid prof-grid" v-if="profile.products.length">
-              <article class="card" v-for="p in profile.products" :key="p.id" @click="openDetail(p)">
-                <div class="card-img"><img :src="p.image || '/static/default-cover.svg'" :alt="p.title"></div>
-                <div class="card-body">
-                  <h3 class="card-title">{{ p.title }}</h3>
-                  <div class="price-row"><span class="price">¥{{ p.price }}</span></div>
-                  <div class="tag-row"><span class="tag" v-for="t in p.tags" :key="t">{{ t }}</span></div>
-                </div>
-              </article>
-            </div>
-            <div class="empty" v-else><p>这里空空如也~</p></div>
-          </div>
-
-          <!-- 评价：别人在我宝贝下留的言 -->
-          <div v-else-if="profileTab==='comments'">
-            <div class="prof-comments" v-if="profile.comments.length">
-              <div class="prof-comment" v-for="c in profile.comments" :key="c.id">
-                <img class="avatar avatar-sm" :src="c.user.avatar || '/static/default-avatar.svg'" alt="">
-                <div class="pc-body">
-                  <div class="pc-head">
-                    <span>{{ c.user.username }}</span>
-                    <span class="muted xs">{{ c.created_at }}</span>
-                  </div>
-                  <p class="pc-content">{{ c.content }}</p>
-                  <p class="muted xs" v-if="c.product">来自宝贝「{{ c.product.title }}」</p>
-                </div>
-              </div>
-            </div>
-            <div class="empty" v-else><p>还没有收到评价</p></div>
-          </div>
-
-          <!-- 动态：卖出的宝贝 -->
-          <div v-else>
-            <div class="prof-sold" v-if="profile.sold.length">
-              <div class="prof-sold-item" v-for="s in profile.sold" :key="s.id">
-                <img class="ps-img" :src="s.image || '/static/default-cover.svg'" alt="">
-                <div class="ps-info">
-                  <p>卖出了「{{ s.title }}」</p>
-                  <p class="muted xs">{{ s.date }} · 成交价 ¥{{ s.price }}</p>
-                </div>
-              </div>
-            </div>
-            <div class="empty" v-else><p>还没有成交记录</p></div>
-          </div>
-        </div>
-
-        <button class="prof-publish" @click="openCreate">发布闲置</button>
-      </section>
-
       <!-- ---------- 编辑主页（闲鱼风格资料行） ---------- -->
       <section class="page page-editme" v-show="tab==='editme'">
         <div class="pd-top editme-top">
-          <button class="btn btn-solid btn-sm" @click="backToProfile">← 返回</button>
+          <button class="btn btn-solid btn-sm" @click="switchTab('mine')">← 返回</button>
           <h2 class="editme-title">编辑主页</h2>
         </div>
 
@@ -829,10 +727,9 @@
 
         <div class="editme-card">
           <div class="editme-group-title">平台影响力</div>
-          <div class="editme-row" @click="switchTab('profile')">
+          <div class="editme-row">
             <span class="er-label">信用</span>
-            <span class="er-value">买家 / 卖家信用 · 去查看</span>
-            <span class="er-arrow">›</span>
+            <span class="er-value ph">买家 / 卖家信用 · 敬请期待</span>
           </div>
           <div class="editme-row">
             <span class="er-label">我的勋章</span>

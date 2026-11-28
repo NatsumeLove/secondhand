@@ -1732,137 +1732,10 @@ select:disabled { opacity: 0.45; cursor: not-allowed; }
 }
 
 /* =========================================================================
-   个人主页（闲鱼风格）+ 编辑主页（资料行）
+   编辑主页 —— 一行行点开改资料
    ========================================================================= */
 
-/* —— 个人主页 —— */
-.prof-top { display: flex; justify-content: space-between; align-items: center; }
 
-.prof-hero {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 16px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  backdrop-filter: blur(6px);
-}
-.prof-avatar { width: 72px; height: 72px; border-radius: 50%; border: 2px solid var(--line); }
-.prof-hero-info h2 { display: flex; align-items: center; gap: 8px; }
-.prof-stats { display: flex; align-items: center; gap: 10px; margin-top: 4px; color: #6d5231; font-size: 13px; }
-.prof-stats b { color: var(--text); font-size: 15px; }
-.prof-stat-div { width: 1px; height: 12px; background: var(--line); display: inline-block; }
-
-.prof-tags { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
-.prof-ip {
-  font-size: 12px;
-  color: var(--muted);
-  background: var(--surface-dim);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 1px 10px;
-}
-.prof-tag {
-  font-size: 12px;
-  color: var(--brand);
-  background: var(--brand-soft);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 1px 10px;
-}
-
-.prof-bio { margin: 8px 0 12px; color: var(--text); }
-.prof-more { border: none; background: none; color: var(--brand); font-size: 13px; padding: 0; }
-
-.prof-credit {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 10px 14px;
-  margin-bottom: 14px;
-}
-.credit-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-.credit-face {
-  width: 22px; height: 22px;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  color: #fff;
-  background: var(--gold);
-}
-.credit-face-buyer { background: var(--brand); }
-.credit-face-seller { background: var(--green); }
-
-.prof-tabs {
-  display: flex;
-  gap: 4px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-bottom: none;
-  border-radius: var(--radius) var(--radius) 0 0;
-  padding: 0 10px;
-  margin-bottom: 0;
-}
-.prof-tab {
-  border: none;
-  background: none;
-  padding: 9px 16px;
-  font-size: 15px;
-  color: #6d5231;
-  border-bottom: 2px solid transparent;
-}
-.prof-tab.active { color: var(--brand); border-bottom-color: var(--brand); font-weight: 600; }
-.prof-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
-
-.prof-comments, .prof-sold { display: flex; flex-direction: column; gap: 10px; }
-.prof-comment {
-  display: flex;
-  gap: 10px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 10px 12px;
-}
-.pc-head { display: flex; justify-content: space-between; gap: 10px; }
-.pc-content { margin: 4px 0; }
-.pc-body { flex: 1; min-width: 0; }
-.pc-body p { margin: 0; }
-
-.prof-sold-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 10px 12px;
-}
-.prof-sold-item p { margin: 0; }
-.ps-img { width: 52px; height: 52px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
-.ps-info { min-width: 0; }
-
-.prof-publish {
-  position: sticky;
-  bottom: 16px;
-  display: block;
-  margin: 18px auto 0;
-  padding: 10px 34px;
-  border: none;
-  border-radius: 999px;
-  background: linear-gradient(135deg, var(--brand), var(--brand-dark));
-  color: #fff;
-  font-size: 16px;
-  letter-spacing: 0.1em;
-  box-shadow: var(--shadow), var(--glow);
-}
-
-/* —— 编辑主页（资料行） —— */
 .editme-top { display: flex; align-items: center; gap: 12px; }
 .editme-title { font-size: 18px; color: #f3e3bd; text-shadow: 0 1px 10px rgba(10, 5, 2, 0.85); }
 
@@ -1936,14 +1809,6 @@ select:disabled { opacity: 0.45; cursor: not-allowed; }
 .ep-input:focus { border-color: var(--brand); }
 .ep-options { display: flex; flex-wrap: wrap; gap: 8px; }
 .ep-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
-
-/* —— 个人主页：自家门户，灯火可亲 —— */
-.page-profile::before {
-  background-image:
-    linear-gradient(180deg, rgba(24, 14, 8, 0.18) 0%, rgba(24, 14, 8, 0.30) 55%, rgba(20, 12, 6, 0.46) 100%),
-    url("/static/theme/bg-song-market.png");
-}
-.page-profile::after { content: "自家门户 · 灯火可亲"; }
 
 /* —— 编辑主页：静室理妆 —— */
 .page-editme::before {

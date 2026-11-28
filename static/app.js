@@ -123,10 +123,7 @@ const __app = createApp({
       profileForm: { username: '', password: '' },
       profileRegion: { province: '', city: '', district: '' },   // 所在地区（省/市/县）
 
-      // 个人主页（闲鱼风格）+ 编辑主页（资料行）
-      profile: null,        // /users/<id>/profile 的返回（自己的）
-      profileTab: 'goods',  // 宝贝 / 评价 / 动态
-      profileFrom: 'home',  // 进个人主页之前的栏目，返回时回到那里
+      // 编辑主页（资料行）
       editPop: null,        // 当前正在编辑哪一项（null=没有弹层）
       editTitles: { username: '修改昵称', bio: '编辑简介', gender: '选择性别', birthday: '选择生日',
                     likes: '选择喜欢的', school: '填写院校名称', region: '选择常住地' },
@@ -212,7 +209,7 @@ const __app = createApp({
     },
     // "我的"是否处于选中态：总览页本身或它收纳的任何子页面
     mineActive() {
-      return ['mine', 'items', 'orders', 'favorites', 'history', 'following', 'me'].includes(this.tab)
+      return ['mine', 'items', 'orders', 'favorites', 'history', 'following', 'me', 'editme'].includes(this.tab)
     },
   },
 
@@ -251,7 +248,7 @@ const __app = createApp({
         } else if (hash.startsWith('court/')) {
           this.tab = 'court'
           await this.openCourtDetail(Number(hash.split('/')[1]))
-        } else if (['me', 'home', 'court', 'msg', 'mine', 'items', 'orders', 'favorites', 'history', 'following', 'profile', 'editme', 'imgsearch'].includes(hash)) {
+        } else if (['me', 'home', 'court', 'msg', 'mine', 'items', 'orders', 'favorites', 'history', 'following', 'editme', 'imgsearch'].includes(hash)) {
           await this.switchTab(hash)
         }
       } catch (e) {
@@ -1418,36 +1415,11 @@ const __app = createApp({
       }
     },
 
-    /* ================= 个人主页 / 编辑主页 ================= */
-
-    // 打开自己的个人主页（左上角头像 / 我的页头像 / 编辑主页返回时都会走这里）
-    async openMyProfile(from) {
-      this.profileFrom = from && from !== 'profile' && from !== 'editme' ? from : (this.profileFrom || 'home')
-      try {
-        this.profile = await api(`/users/${this.me.id}/profile`)
-        this.tab = 'profile'
-        if (location.hash !== '#profile') location.hash = 'profile'
-        window.scrollTo(0, 0)
-      } catch (e) {
-        this.notify(e.message, 'err')
-      }
-    },
-
-    // 个人主页的返回：回到进来之前的栏目
-    closeProfile() {
-      const from = this.profileFrom === 'profile' ? 'home' : (this.profileFrom || 'home')
-      this.profileFrom = 'home'
-      this.switchTab(from)
-    },
+    /* ================= 编辑主页 ================= */
 
     openEditMe() {
       this.syncProfileRegion()
       this.switchTab('editme')
-    },
-
-    // 编辑主页的返回：回到个人主页（保持进来前的栏目记忆）
-    backToProfile() {
-      this.switchTab('profile')
     },
 
     // 点某一行资料 → 弹出对应的编辑器，先把当前值填进表单
@@ -1498,10 +1470,6 @@ const __app = createApp({
       try {
         this.me = await api('/me', { method: 'PUT', body: JSON.stringify(body) })
         this.editPop = null
-        // 个人主页正开着的话顺手把上面的资料刷一下
-        if (this.profile && this.profile.id === this.me.id && this.tab !== 'profile') {
-          this.profile = await api(`/users/${this.me.id}/profile`)
-        }
         this.notify('已保存')
       } catch (e) {
         this.notify(e.message, 'err')
@@ -1640,7 +1608,6 @@ const __app = createApp({
       if (key === 'favorites') await this.loadFavorites()
       if (key === 'history') await this.loadHistory()
       if (key === 'following') await this.loadFollowing()
-      if (key === 'profile') await this.openMyProfile(this.profileFrom)
       if (key === 'editme') this.syncProfileRegion()
       if (key === 'me') {
         this.profileForm.username = this.me.username
