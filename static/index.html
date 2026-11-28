@@ -909,7 +909,7 @@
             <button class="back-btn" @click="closeImgSearch" title="返回">←</button>
             <h2>以图搜物</h2>
           </div>
-          <button class="btn btn-ghost btn-sm" @click="openImgSearchPicker">换一张图片</button>
+          <button class="btn btn-solid btn-sm" @click="openImgSearchPicker">换一张图片</button>
         </div>
 
         <div class="imgsearch-head" v-if="imgSearchImg">
@@ -996,7 +996,7 @@
             <button class="back-btn" @click="backToCourt" title="返回小法庭">←</button>
             <h2>案件详情</h2>
           </div>
-          <button class="btn btn-ghost btn-sm"
+          <button class="btn btn-danger btn-sm"
                   v-if="courtDetail && courtDetail.is_participant"
                   @click="deleteCourt(courtDetail.id)">撤销案件</button>
         </div>
@@ -1207,14 +1207,14 @@
             <button class="btn btn-primary" @click="shootCam">拍照搜同款</button>
           </template>
           <template v-else-if="camMode==='shot'">
-            <button class="btn btn-ghost" @click="retakeCam">重拍</button>
+            <button class="btn btn-solid" @click="retakeCam">重拍</button>
             <button class="btn btn-primary" :disabled="imgSearching" @click="searchByImage">
               {{ imgSearching ? '识别中…' : '找相似宝贝' }}
             </button>
           </template>
           <template v-else>
             <button class="btn btn-primary" @click="startCam">打开相机</button>
-            <button class="btn btn-ghost" @click="pickImgSearchFile">上传图片</button>
+            <button class="btn btn-solid" @click="pickImgSearchFile">上传图片</button>
           </template>
         </div>
       </div>

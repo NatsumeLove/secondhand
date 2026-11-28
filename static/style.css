@@ -635,7 +635,16 @@ select:disabled { opacity: 0.45; cursor: not-allowed; }
   letter-spacing: 0.08em;
 }
 .empty p { margin: 0 0 6px; text-shadow: 0 1px 6px rgba(10, 5, 2, 0.8); }
-.empty.small { padding: 26px 12px; border: none; background: transparent; }
+/* 消息页的空状态坐在浅色卡片里，不能沿用深色背景那套「浅金字 + 黑投影」，
+   否则浅金压在米色上、再套一层黑描边，整行就糊成一团 */
+.empty.small {
+  padding: 26px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+}
+.empty.small p { text-shadow: none; }
+.empty.small p.muted { color: var(--muted); }
 
 /* =========================================================================
    首页 —— 绢帛卡片 + 3D 悬浮
@@ -843,7 +852,7 @@ select:disabled { opacity: 0.45; cursor: not-allowed; }
 .chat-empty {
   align-items: center;
   justify-content: center;
-  color: #cdb28a;
+  color: var(--muted);
   font-family: var(--font-title);
   letter-spacing: 0.1em;
 }
@@ -2240,6 +2249,15 @@ select:disabled { opacity: 0.45; cursor: not-allowed; }
 .court-goods img { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; }
 .court-goods p { margin: 0 0 4px; font-weight: 600; max-width: 320px; }
 
+/* 围观评论区：和上方「审理中 / 双方陈述 / 投票 / 纠纷商品」一样
+   是一张浅色卡片。之前漏了外层底色，深棕字直接压在深色页面上，标题和评论都看不见 */
+.court-comments {
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--gold-soft);
+  background: #fffdf7;
+  margin-bottom: 14px;
+}
 .court-comments h4 { margin: 0 0 10px; }
 .court-comment { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px dashed #e8dcc2; }
 .court-comment p { margin: 4px 0 0; font-size: 14px; line-height: 1.5; }
