@@ -530,7 +530,7 @@
 
         <div class="mine-group">
           <h3 class="mine-group-title">个人数据</h3>
-          <div class="mine-grid">
+          <div class="mine-grid mine-grid-4">
             <button class="mine-tile" @click="goMine('favorites')">
               <span class="mine-tile-icon mine-tile-icon-heart" v-html="ICONS.heart"></span>
               <strong>我的收藏</strong>
@@ -547,6 +547,12 @@
               <span class="mine-tile-icon" v-html="ICONS.people"></span>
               <strong>我的关注</strong>
               <span class="mine-tile-count">{{ mineSummary.following }}</span>
+              <span class="mine-tile-arrow">›</span>
+            </button>
+            <button class="mine-tile" @click="goMine('followers')">
+              <span class="mine-tile-icon" v-html="ICONS.fans"></span>
+              <strong>我的粉丝</strong>
+              <span class="mine-tile-count">{{ mineSummary.followers }}</span>
               <span class="mine-tile-arrow">›</span>
             </button>
           </div>
@@ -626,6 +632,32 @@
         <div class="empty" v-else>
           <p>还没有关注的卖家</p>
           <p class="muted xs">在商品详情页或卖家小铺点「+ 关注」</p>
+        </div>
+      </section>
+
+      <!-- ---------- 我的粉丝 ---------- -->
+      <section class="page page-followers" v-show="tab==='followers'">
+        <div class="list-head">
+          <div class="list-head-left">
+            <button class="back-btn" @click="switchTab('mine')" title="返回我的">←</button>
+            <h2>我的粉丝</h2>
+          </div>
+        </div>
+        <div class="follow-list" v-if="followers.length">
+          <div class="follow-row" v-for="u in followers" :key="u.id">
+            <img class="avatar clickable" :src="u.avatar || '/static/default-avatar.svg'"
+                 alt="" @click="openShop(u.id)">
+            <div class="follow-main clickable" @click="openShop(u.id)">
+              <div><strong>{{ u.username }}</strong> 关注了你</div>
+              <div class="muted xs">{{ u.on_sale }} 件在售 · {{ u.followers }} 位关注者</div>
+            </div>
+            <span class="follow-tag" v-if="u.is_following">已互关</span>
+            <button class="btn btn-primary btn-sm" v-else @click="followBack(u)">回关</button>
+          </div>
+        </div>
+        <div class="empty" v-else>
+          <p>还没有粉丝</p>
+          <p class="muted xs">多发布几件闲置，关注你的人会出现在这里</p>
         </div>
       </section>
 

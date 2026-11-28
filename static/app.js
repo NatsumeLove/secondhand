@@ -18,6 +18,8 @@ const ICONS = {
   heart: icon('<path d="M8 13.2 3.6 8.8a2.8 2.8 0 0 1 4-4L8 5.3l.4-.5a2.8 2.8 0 0 1 4 4z"/>'),
   clock: icon('<circle cx="8" cy="8" r="5.6"/><path d="M8 5.2V8l2 1.5"/>'),
   people: icon('<circle cx="5.8" cy="5.8" r="2.4"/><path d="M2.2 12.9c.5-2 2-3.1 3.6-3.1s3.1 1.1 3.6 3.1"/><circle cx="11.4" cy="6.6" r="1.9"/><path d="M11 9.9c1.4.2 2.5 1.1 2.9 2.7"/>'),
+  // 我的粉丝：一个人 + 一颗心（和「关注」的双人图标区分开）
+  fans: icon('<circle cx="6.2" cy="5" r="2.4"/><path d="M2.2 13c.5-2.1 2.1-3.2 4-3.2.9 0 1.8.3 2.5.8"/><path d="M11.4 8.5a1.9 1.9 0 0 1 2.7 2.7l-2.7 2.7-2.7-2.7a1.9 1.9 0 0 1 2.7-2.7z"/>'),
   box: icon('<path d="M8 2.2 13.4 5v6L8 13.8 2.6 11V5z"/><path d="M2.6 5 8 7.8 13.4 5"/><path d="M8 7.8v6"/>'),
   receipt: icon('<path d="M4 2.4h8v11.2l-2-1.2-2 1.2-2-1.2-2 1.2z"/><path d="M6 5.6h4M6 8h4"/>'),
   court: icon('<path d="M8 2.8v9.6M4.4 4.6h7.2M4.4 4.6 2.6 8.8a2.1 2.1 0 0 0 3.6 0zM11.6 4.6 9.8 8.8a2.1 2.1 0 0 0 3.6 0zM5.8 13.6h4.4"/>'),
@@ -151,11 +153,12 @@ const __app = createApp({
       courtStmtOpen: false,
       courtVoting: false,
 
-      // 我的（总览页）：收藏 / 浏览记录 / 关注
+      // 我的（总览页）：收藏 / 浏览记录 / 关注 / 粉丝
       favorites: [],
       history: [],
       following: [],
-      mineSummary: { products: 0, sold: 0, bought: 0, favorites: 0, history: 0, following: 0 },
+      followers: [],
+      mineSummary: { products: 0, sold: 0, bought: 0, favorites: 0, history: 0, following: 0, followers: 0 },
 
       // 卖家小铺主页
       shop: null,
@@ -209,7 +212,7 @@ const __app = createApp({
     },
     // "我的"是否处于选中态：总览页本身或它收纳的任何子页面
     mineActive() {
-      return ['mine', 'items', 'orders', 'favorites', 'history', 'following', 'me', 'editme'].includes(this.tab)
+      return ['mine', 'items', 'orders', 'favorites', 'history', 'following', 'followers', 'me', 'editme'].includes(this.tab)
     },
   },
 
@@ -248,7 +251,7 @@ const __app = createApp({
         } else if (hash.startsWith('court/')) {
           this.tab = 'court'
           await this.openCourtDetail(Number(hash.split('/')[1]))
-        } else if (['me', 'home', 'court', 'msg', 'mine', 'items', 'orders', 'favorites', 'history', 'following', 'editme', 'imgsearch'].includes(hash)) {
+        } else if (['me', 'home', 'court', 'msg', 'mine', 'items', 'orders', 'favorites', 'history', 'following', 'followers', 'editme', 'imgsearch'].includes(hash)) {
           await this.switchTab(hash)
         }
       } catch (e) {
@@ -1278,15 +1281,17 @@ const __app = createApp({
             api('/favorites'),
             api('/history'),
             api('/me/following'),
+            api('/me/followers'),
           ])
           const values = results.map((r) => (r.status === 'fulfilled' ? r.value : null))
-          const [products, orders, favorites, history, following] = values
+          const [products, orders, favorites, history, following, followers] = values
           // 顺手把拉到的数据存起来，进对应子页面时不用再请求一次
           if (products) this.myProducts = products
           if (orders) this.orders = orders
           if (favorites) this.favorites = favorites
           if (history) this.history = history
           if (following) this.following = following
+          if (followers) this.followers = followers
           this.mineSummary = {
             products: this.myProducts.length,
             sold: this.orders.sold.length,
@@ -1294,6 +1299,7 @@ const __app = createApp({
             favorites: this.favorites.length,
             history: this.history.length,
             following: this.following.length,
+            followers: this.followers.length,
           }
         } catch (err) {
           /* 彻底失败时保持旧值，不打扰用户 */
@@ -1312,7 +1318,7 @@ const __app = createApp({
         this.orderTab = 'bought'
         return this.switchTab('orders')
       }
-      return this.switchTab(kind)      // favorites / history / following
+      return this.switchTab(kind)      // favorites / history / following / followers
     },
 
     async loadFavorites() {
@@ -1334,6 +1340,26 @@ const __app = createApp({
     async loadFollowing() {
       try {
         this.following = await api('/me/following')
+      } catch (e) {
+        this.notify(e.message, 'err')
+      }
+    },
+
+    async loadFollowers() {
+      try {
+        this.followers = await api('/me/followers')
+      } catch (e) {
+        this.notify(e.message, 'err')
+      }
+    },
+
+    // 粉丝列表里点「回关」：关注对方，之后按钮变成「已互关」
+    async followBack(u) {
+      try {
+        await api(`/users/${u.id}/follow`, { method: 'POST' })
+        u.is_following = true
+        this.mineSummary.following = (this.mineSummary.following || 0) + 1
+        this.notify(`已回关 ${u.username}`)
       } catch (e) {
         this.notify(e.message, 'err')
       }
@@ -1608,6 +1634,7 @@ const __app = createApp({
       if (key === 'favorites') await this.loadFavorites()
       if (key === 'history') await this.loadHistory()
       if (key === 'following') await this.loadFollowing()
+      if (key === 'followers') await this.loadFollowers()
       if (key === 'editme') this.syncProfileRegion()
       if (key === 'me') {
         this.profileForm.username = this.me.username

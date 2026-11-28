@@ -13,7 +13,9 @@ from datetime import datetime, timedelta
 
 from werkzeug.security import generate_password_hash
 
-from models import db, Dispute, DisputeComment, DisputeVote, Order, Product, User
+from models import (
+    db, Dispute, DisputeComment, DisputeVote, Follow, Order, Product, User
+)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_DIR = os.path.join(BASE_DIR, "static", "uploads")
@@ -215,6 +217,26 @@ def seed_all():
         )
 
     db.session.commit()
+
+    # 演示关注关系：小林关注老王；老王、苏苏都关注小林。
+    # 这样「我的-我的粉丝」一打开就有两条数据，能看到「回关 / 已互关」两种状态。
+    follows = {"小林": ["老王"], "老王": ["小林"], "苏苏": ["小林"]}
+    by_name = {u.username: u for u in users}
+    for follower_name, targets in follows.items():
+        follower = by_name.get(follower_name)
+        if follower is None:
+            continue
+        for target_name in targets:
+            target = by_name.get(target_name)
+            if target is None:
+                continue
+            exists = Follow.query.filter_by(
+                follower_id=follower.id, followed_id=target.id
+            ).first()
+            if not exists:
+                db.session.add(Follow(follower_id=follower.id, followed_id=target.id))
+    db.session.commit()
+
     print(f"演示数据已生成：{len(users)} 个账号，{len(PRODUCTS)} 件商品")
 
 

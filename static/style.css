@@ -530,6 +530,16 @@ select:disabled { opacity: 0.45; cursor: not-allowed; }
 }
 .page-following::after { content: "市声熙攘 · 常相往来"; }
 
+/* —— 粉丝：宾朋沓至，门庭生暖 ——
+   和「我的关注」同一个市井场景（一往一来，本是同一处热闹），
+   遮罩比关注页稍轻一点，人气看着更盛。 */
+.page-followers::before {
+  background-image:
+    linear-gradient(180deg, rgba(24, 14, 8, 0.16) 0%, rgba(24, 14, 8, 0.28) 55%, rgba(20, 12, 6, 0.44) 100%),
+    url("/static/theme/bg-crowd-market.jpg");
+}
+.page-followers::after { content: "宾朋沓至 · 门庭生暖"; }
+
 /* —— 卖家小铺：绸缎庄前，诚信立肆 —— */
 .page-user::before {
   background-image:
@@ -629,8 +639,9 @@ select:disabled { opacity: 0.45; cursor: not-allowed; }
   color: #e8d5ab;
   border: 1px dashed rgba(217, 164, 65, 0.55);
   border-radius: var(--radius);
-  background: rgba(28, 17, 8, 0.42);
-  backdrop-filter: blur(6px);
+  background: rgba(22, 13, 7, 0.78);
+  /* 不再做 backdrop-filter 模糊：场景图里的灯笼被糊开后，
+     在空框里会留下一团像污渍的亮斑，深色实底反而更干净 */
   font-family: var(--font-title);
   letter-spacing: 0.08em;
 }
@@ -1582,6 +1593,11 @@ select:disabled { opacity: 0.45; cursor: not-allowed; }
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 12px;
 }
+/* 个人数据那行有 4 个入口：固定 4 列，避免 auto-fill 排成 3+1 的孤行 */
+.mine-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 720px) {
+  .mine-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .mine-tile {
   position: relative;
   display: flex;
@@ -1698,6 +1714,18 @@ select:disabled { opacity: 0.45; cursor: not-allowed; }
 }
 .follow-main { flex: 1; min-width: 0; }
 .follow-main .muted { margin-top: 2px; }
+
+/* 粉丝列表里的「已互关」标记：不做成按钮，避免禁用态的 50% 透明度看不清 */
+.follow-tag {
+  flex: none;
+  font-size: 12px;
+  color: #6d5231;
+  background: rgba(70, 48, 24, 0.07);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 12px;
+  white-space: nowrap;
+}
 
 /* 详情页：讲价 + 收藏并排 */
 .pd-action-row {

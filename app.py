@@ -1136,6 +1136,7 @@ def mine_summary(user):
         "favorites": Favorite.query.filter_by(user_id=user.id).count(),
         "history": ProductView.query.filter_by(user_id=user.id).count(),
         "following": Follow.query.filter_by(follower_id=user.id).count(),
+        "followers": Follow.query.filter_by(followed_id=user.id).count(),
     })
 
 
@@ -1190,6 +1191,33 @@ def my_following(user):
             "avatar": u.avatar,
             "followers": Follow.query.filter_by(followed_id=u.id).count(),
             "on_sale": Product.query.filter_by(owner_id=u.id, status="on").count(),
+        })
+    return jsonify(result)
+
+
+@app.get("/api/me/followers")
+@login_required
+def my_followers(user):
+    """关注我的人，供"我的-我的粉丝"页使用。
+
+    和关注列表的区别：这里每个人还要带上「我有没有回关他」（is_following），
+    页面上才能显示「回关 / 已互关」而不是笼统的一个按钮。
+    """
+    rows = Follow.query.filter_by(followed_id=user.id).order_by(Follow.id.desc()).all()
+    result = []
+    for f in rows:
+        u = db.session.get(User, f.follower_id)
+        if u is None:
+            continue
+        result.append({
+            "id": u.id,
+            "username": u.username,
+            "avatar": u.avatar,
+            "followers": Follow.query.filter_by(followed_id=u.id).count(),
+            "on_sale": Product.query.filter_by(owner_id=u.id, status="on").count(),
+            "is_following": Follow.query.filter_by(
+                follower_id=user.id, followed_id=u.id
+            ).first() is not None,
         })
     return jsonify(result)
 
